@@ -2,12 +2,97 @@
 
 import { useState } from "react"
 import { Copy, Check, Monitor, ChevronLeft, ChevronRight } from "lucide-react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 
 const AGENTS = [
   { id: "ag-001", name: "Agente Comercial" },
   { id: "ag-002", name: "Soporte Técnico" },
   { id: "ag-003", name: "Asistente General" },
 ]
+
+// Sample conversation to showcase markdown rendering
+const SAMPLE_MESSAGES = [
+  {
+    role: "user" as const,
+    text: "¿Qué planes tienen disponibles?",
+  },
+  {
+    role: "agent" as const,
+    text: `Tenemos **3 planes** disponibles:\n\n- **Starter** — hasta 1.000 consultas/mes\n- **Pro** — hasta 10.000 consultas/mes\n- **Enterprise** — ilimitado\n\n> Todos incluyen soporte 24/7.`,
+  },
+  {
+    role: "user" as const,
+    text: "¿El Pro incluye acceso a la API?",
+  },
+  {
+    role: "agent" as const,
+    text: `Sí, el plan **Pro** incluye:\n\n1. Acceso completo a la \`REST API\`\n2. Webhooks configurables\n3. Documentación en [docs.krnl.ai](https://docs.krnl.ai)\n\n¿Te gustaría comenzar una prueba gratuita?`,
+  },
+]
+
+function MarkdownBubble({
+  text,
+  textColor,
+  bubbleColor,
+  isAgent,
+}: {
+  text: string
+  textColor: string
+  bubbleColor?: string
+  isAgent: boolean
+}) {
+  return (
+    <div
+      className="rounded-xl px-3 py-2 text-xs max-w-[200px] leading-relaxed"
+      style={
+        isAgent
+          ? { background: bubbleColor, color: textColor, borderRadius: "0 12px 12px 12px" }
+          : { background: "#F1F5F9", color: "#334155", borderRadius: "12px 0 12px 12px" }
+      }
+    >
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+          strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+          em: ({ children }) => <em className="italic">{children}</em>,
+          ul: ({ children }) => <ul className="list-disc list-inside space-y-0.5 mb-1">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal list-inside space-y-0.5 mb-1">{children}</ol>,
+          li: ({ children }) => <li>{children}</li>,
+          code: ({ children }) => (
+            <code
+              className="px-1 py-0.5 rounded text-[10px] font-mono"
+              style={isAgent ? { background: "rgba(255,255,255,0.2)" } : { background: "#E2E8F0" }}
+            >
+              {children}
+            </code>
+          ),
+          blockquote: ({ children }) => (
+            <blockquote
+              className="border-l-2 pl-2 italic opacity-80"
+              style={isAgent ? { borderColor: "rgba(255,255,255,0.4)" } : { borderColor: "#CBD5E1" }}
+            >
+              {children}
+            </blockquote>
+          ),
+          a: ({ href, children }) => (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 opacity-90 hover:opacity-100"
+            >
+              {children}
+            </a>
+          ),
+        }}
+      >
+        {text}
+      </ReactMarkdown>
+    </div>
+  )
+}
 
 export function WidgetView() {
   const [agentId, setAgentId] = useState(AGENTS[0].id)
@@ -262,7 +347,8 @@ export function WidgetView() {
                       </button>
                     </div>
                     {/* Messages */}
-                    <div className="px-4 py-3 space-y-2" style={{ minHeight: 120 }}>
+                    <div className="px-4 py-3 space-y-2.5 overflow-y-auto" style={{ maxHeight: 280 }}>
+                      {/* Welcome message */}
                       <div className="flex gap-2 items-start">
                         <div
                           className="h-6 w-6 rounded-full shrink-0 flex items-center justify-center"
@@ -270,13 +356,36 @@ export function WidgetView() {
                         >
                           <Monitor className="h-3 w-3 text-white" />
                         </div>
-                        <div
-                          className="rounded-xl rounded-tl-none px-3 py-2 text-xs text-white max-w-[180px]"
-                          style={{ background: bubbleColor }}
-                        >
-                          {welcomeMsg}
-                        </div>
+                        <MarkdownBubble
+                          text={welcomeMsg}
+                          textColor="#ffffff"
+                          bubbleColor={bubbleColor}
+                          isAgent={true}
+                        />
                       </div>
+
+                      {/* Sample conversation */}
+                      {SAMPLE_MESSAGES.map((msg, i) => (
+                        <div
+                          key={i}
+                          className={`flex gap-2 items-start ${msg.role === "user" ? "flex-row-reverse" : ""}`}
+                        >
+                          {msg.role === "agent" && (
+                            <div
+                              className="h-6 w-6 rounded-full shrink-0 flex items-center justify-center"
+                              style={{ background: brandColor }}
+                            >
+                              <Monitor className="h-3 w-3 text-white" />
+                            </div>
+                          )}
+                          <MarkdownBubble
+                            text={msg.text}
+                            textColor="#ffffff"
+                            bubbleColor={bubbleColor}
+                            isAgent={msg.role === "agent"}
+                          />
+                        </div>
+                      ))}
                     </div>
                     {/* Input */}
                     <div className="px-3 pb-3">
