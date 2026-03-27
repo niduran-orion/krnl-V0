@@ -183,7 +183,50 @@ const INITIAL_CONVERSATIONS: Conversation[] = [
     agentColor: "#0F2870",
     timestamp: "Hace 32 min",
     status: "pending-approval",
-    messages: [],
+    messages: [
+      {
+        id: "c2-u1",
+        role: "user",
+        text: "Necesito que crees un repositorio en GitHub para el proyecto nuevo",
+      },
+      {
+        id: "c2-s1",
+        role: "stream",
+        steps: [
+          {
+            id: "c2-step1",
+            kind: "guardrail-ok",
+            text: "Guardrail: Validando integridad del prompt... OK",
+          },
+          {
+            id: "c2-step2",
+            kind: "supervisor-assigned",
+            text: "Supervisor: Tarea asignada a:",
+            subText: "Ag. Herramientas",
+          },
+          {
+            id: "c2-step3",
+            kind: "agent-thinking",
+            text: "Ag. Herramientas esta procesando la solicitud...",
+          },
+          {
+            id: "c2-step4",
+            kind: "tool-approval",
+            text: "Accion requiere aprobacion",
+            toolData: {
+              toolName: "Crear Repositorio",
+              integration: "GitHub",
+              icon: "github",
+              params: {
+                "Repo Name": "new-project",
+                Visibility: "private",
+                Template: "node-typescript",
+              },
+            },
+          },
+        ],
+      },
+    ],
   },
   {
     id: "c3",
@@ -751,24 +794,26 @@ export function PlaygroundView() {
       })
     )
 
-    setIsStreaming(true)
-    setPendingStreamMsgId(streamMsgId)
-    setVisibleSteps(new Set())
-
-    setTimeout(() => revealSteps(steps, streamMsgId), 300)
-  }, [inputText, isStreaming, activeConvId, revealSteps])
-
-  const handleNewConversation = () => {
-    const newConv: Conversation = {
-      id: crypto.randomUUID(),
-      title: "Nueva conversacion",
-      agentName: selectedAgent.name,
-      agentInitials: selectedAgent.initials,
-      agentColor: selectedAgent.color,
-      timestamp: "Ahora",
-      status: "active",
-      messages: [],
-    }
+      setIsStreaming(false)
+      // Reveal the executed step + any remaining steps after it
+      setVisibleSteps((prev) => new Set([...prev, stepId]))
+      // The response step was pushed into steps array, reveal it after brief delay
+      setTimeout(() => {
+        setConversations((latest) => {
+          const conv = latest.find((c) => c.id === activeConvId)
+          const msg = conv?.messages.find((m) => m.id === msgId)
+          if (msg?.steps) {
+            const approvalIdx = msg.steps.findIndex((s) => s.id === stepId)
+            const remaining = msg.steps.slice(approvalIdx + 1)
+            remaining.forEach((s, i) => {
+              setTimeout(() => {
+                setVisibleSteps((prev) => new Set([...prev, s.id]))
+              }, i * 400)
+            })
+          }
+          return latest
+        })
+      }, 300)
     setConversations((prev) => [newConv, ...prev])
     setActiveConvId(newConv.id)
     setVisibleSteps(new Set())
@@ -1018,9 +1063,31 @@ export function PlaygroundView() {
                 )
               }
 
-              // Stream message
+              // Stream message — split steps into sections:
+              // 1. log steps (guardrail, supervisor, thinking) → inside card
+              // 2. tool-approval / tool-executed / tool-rejected → full-width block outside card
+              // 3. response → outside card
+              const isOldConv = !pendingStreamMsgId || pendingStreamMsgId !== msg.id
+              const logSteps = (msg.steps ?? []).filter(
+                (s) =>
+                  s.kind !== "tool-approval" &&
+                  s.kind !== "tool-executed" &&
+                  s.kind !== "tool-rejected" &&
+                  s.kind !== "response"
+              )
+              const actionSteps = (msg.steps ?? []).filter(
+                (s) =>
+                  s.kind === "tool-approval" ||
+                  s.kind === "tool-executed" ||
+                  s.kind === "tool-rejected"
+              )
+              const responseStep = (msg.steps ?? []).find((s) => s.kind === "response")
+
+              const stepVisible = (stepId: string) =>
+                isOldConv || visibleSteps.has(stepId)
+
               return (
-                <div key={msg.id} className="flex flex-col gap-2.5 max-w-[75%]">
+                <div key={msg.id} className="flex flex-col gap-3 max-w-[80%]">
                   {/* Agent avatar row */}
                   <div className="flex items-center gap-2">
                     <div
@@ -1034,38 +1101,115 @@ export function PlaygroundView() {
                     </span>
                   </div>
 
-                  {/* Steps */}
-                  <div
-                    className="rounded-2xl border px-4 py-3 space-y-2.5"
-                    style={{
-                      background: "#FAFBFC",
-                      borderColor: "rgba(145,158,171,0.2)",
-                      borderRadius: "4px 16px 16px 16px",
-                    }}
-                  >
-                    {msg.steps?.map((step) => {
-                      // For tool-approval / tool-executed / tool-rejected
-                      const isTool =
-                        step.kind === "tool-approval" ||
-                        step.kind === "tool-executed" ||
-                        step.kind === "tool-rejected"
-                      const visible =
-                        visibleSteps.has(step.id) ||
-                        // show all steps for old conversations
-                        !pendingStreamMsgId ||
-                        (pendingStreamMsgId !== msg.id)
+                  {/* Log steps card (guardrail + supervisor lines) */}
+                  {logSteps.filter((s) => s.kind !== "agent-thinking").some((s) => stepVisible(s.id)) && (
+                    <div
+                      className="rounded-xl border px-4 py-3 space-y-2"
+                      style={{
+                        background: "#FAFBFC",
+                        borderColor: "rgba(145,158,171,0.2)",
+                        borderRadius: "4px 16px 16px 16px",
+                      }}
+                    >
+                      {logSteps
+                        .filter((s) => s.kind !== "agent-thinking")
+                        .map((step) => (
+                          <StreamStepRow
+                            key={step.id}
+                            step={step}
+                            visible={stepVisible(step.id)}
+                            onApprove={(sid) => handleApprove(sid, msg.id)}
+                            onReject={(sid) => handleReject(sid, msg.id)}
+                          />
+                        ))}
+                    </div>
+                  )}
 
-                      return (
-                        <StreamStepRow
+                  {/* Thinking block — animated, separate from log card */}
+                  {logSteps
+                    .filter((s) => s.kind === "agent-thinking")
+                    .map((step) =>
+                      stepVisible(step.id) ? (
+                        <div
                           key={step.id}
-                          step={step}
-                          visible={visible}
-                          onApprove={(sid) => handleApprove(sid, msg.id)}
-                          onReject={(sid) => handleReject(sid, msg.id)}
-                        />
-                      )
-                    })}
-                  </div>
+                          className="rounded-xl border px-4 py-3 flex items-center gap-3"
+                          style={{
+                            background: "#F9F0FF",
+                            borderColor: "rgba(94,36,213,0.15)",
+                            borderRadius: "4px 16px 16px 16px",
+                          }}
+                        >
+                          <Cpu className="h-4 w-4 shrink-0" style={{ color: "#5E24D5" }} />
+                          <span className="text-xs" style={{ color: "#5E24D5" }}>
+                            {step.text}
+                          </span>
+                          {/* Only animate when streaming this message */}
+                          {!isOldConv && (
+                            <span className="inline-flex items-center gap-0.5 ml-1">
+                              {[0, 1, 2].map((i) => (
+                                <span
+                                  key={i}
+                                  className="h-1.5 w-1.5 rounded-full"
+                                  style={{
+                                    background: "#5E24D5",
+                                    animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite`,
+                                  }}
+                                />
+                              ))}
+                            </span>
+                          )}
+                        </div>
+                      ) : null
+                    )}
+
+                  {/* HITL / tool action block — full width, outside log card */}
+                  {actionSteps.map((step) =>
+                    stepVisible(step.id) ? (
+                      <StreamStepRow
+                        key={step.id}
+                        step={step}
+                        visible={true}
+                        onApprove={(sid) => handleApprove(sid, msg.id)}
+                        onReject={(sid) => handleReject(sid, msg.id)}
+                      />
+                    ) : null
+                  )}
+
+                  {/* Final response — outside card, clean white bubble */}
+                  {responseStep && stepVisible(responseStep.id) && (
+                    <div
+                      className="rounded-xl border px-4 py-3 text-sm leading-relaxed"
+                      style={{
+                        background: "#FFFFFF",
+                        borderColor: "rgba(145,158,171,0.2)",
+                        color: "#1C2434",
+                        borderRadius: "4px 16px 16px 16px",
+                      }}
+                    >
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          p: ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
+                          strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                          ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-1.5">{children}</ul>,
+                          ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-1.5">{children}</ol>,
+                          li: ({ children }) => <li>{children}</li>,
+                          code: ({ children }) => (
+                            <code className="px-1.5 py-0.5 rounded text-xs font-mono" style={{ background: "#F1F5F9", color: "#0F2870" }}>
+                              {children}
+                            </code>
+                          ),
+                          a: ({ href, children }) => (
+                            <a href={href} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "#D4009A" }}>
+                              {children}
+                            </a>
+                          ),
+                        }}
+                      >
+                        {responseStep.responseText ?? ""}
+                      </ReactMarkdown>
+                    </div>
+                  )}
                 </div>
               )
             })
