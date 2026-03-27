@@ -83,7 +83,7 @@ const navSections = [
   {
     label: "HERRAMIENTAS",
     items: [
-      { icon: Zap, label: "Playground", href: "#" },
+      { icon: Zap, label: "Playground", href: "/playground" },
     ],
   },
   {
