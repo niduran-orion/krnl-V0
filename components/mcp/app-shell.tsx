@@ -27,6 +27,9 @@ import {
   Server,
   Cable,
   UserCircle2,
+  Monitor,
+  MessageCircle,
+  Webhook,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -34,6 +37,12 @@ const integrationSubItems = [
   { icon: FileCode2, label: "Catálogo Templates", href: "/templates" },
   { icon: Cable,     label: "Configurar Instancias", href: "/instances" },
   { icon: Server,    label: "Servidores Activos", href: "/servers" },
+]
+
+const canalesSubItems = [
+  { icon: Monitor,       label: "Widget Web",      href: "/canales/widget" },
+  { icon: MessageCircle, label: "Mensajería & RRSS", href: "/canales/mensajeria" },
+  { icon: Webhook,       label: "Webhooks",          href: "/canales/webhooks" },
 ]
 
 const navSections = [
@@ -61,7 +70,14 @@ const navSections = [
         hasSubItems: true,
         matchPaths: ["/templates", "/instances", "/servers"],
       },
-      { icon: Radio, label: "Canales", href: "#" },
+      {
+        icon: Radio,
+        label: "Canales",
+        href: "/canales/widget",
+        hasSubItems: true,
+        subItemsKey: "canales",
+        matchPaths: ["/canales/widget", "/canales/mensajeria", "/canales/webhooks"],
+      },
     ],
   },
   {
@@ -98,6 +114,7 @@ export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [integrationExpanded, setIntegrationExpanded] = useState(true)
+  const [canalesExpanded, setCanalesExpanded] = useState(true)
 
   const toggleSection = (label: string) =>
     setCollapsed((prev) => ({ ...prev, [label]: !prev[label] }))
@@ -164,9 +181,15 @@ export function AppShell({ children }: AppShellProps) {
                   <div className="space-y-0.5">
                     {section.items.map((item) => {
                       const hasSubItems = (item as any).hasSubItems
+                      const subItemsKey = (item as any).subItemsKey as string | undefined
                       const active = hasSubItems
                         ? isIntegrationsActive((item as any).matchPaths)
                         : item.href !== "#" && pathname.startsWith(item.href)
+                      const isExpanded = subItemsKey === "canales" ? canalesExpanded : integrationExpanded
+                      const toggleExpanded = subItemsKey === "canales"
+                        ? () => setCanalesExpanded(!canalesExpanded)
+                        : () => setIntegrationExpanded(!integrationExpanded)
+                      const currentSubItems = subItemsKey === "canales" ? canalesSubItems : integrationSubItems
 
                       return (
                         <div key={item.label}>
@@ -205,26 +228,26 @@ export function AppShell({ children }: AppShellProps) {
                             {/* Expand/collapse sub-items toggle */}
                             {hasSubItems && (
                               <button
-                                onClick={() => setIntegrationExpanded(!integrationExpanded)}
+                                onClick={toggleExpanded}
                                 className="p-1.5 rounded-lg transition-colors"
                                 style={{ color: "#637381" }}
                                 onMouseEnter={(e) => (e.currentTarget.style.background = "#F4F6F8")}
                                 onMouseLeave={(e) => (e.currentTarget.style.background = "")}
                               >
                                 <ChevronDown
-                                  className={cn("h-3.5 w-3.5 transition-transform", !integrationExpanded && "-rotate-90")}
+                                  className={cn("h-3.5 w-3.5 transition-transform", !isExpanded && "-rotate-90")}
                                 />
                               </button>
                             )}
                           </div>
 
                           {/* Sub-items */}
-                          {hasSubItems && integrationExpanded && (
+                          {hasSubItems && isExpanded && (
                             <div
                               className="ml-3 mt-0.5 mb-1 pl-3 space-y-0.5 border-l-2"
                               style={{ borderColor: "rgba(145, 158, 171, 0.24)" }}
                             >
-                              {integrationSubItems.map((sub) => {
+                              {currentSubItems.map((sub) => {
                                 const subActive = isSubItemActive(sub.href)
                                 return (
                                   <Link
