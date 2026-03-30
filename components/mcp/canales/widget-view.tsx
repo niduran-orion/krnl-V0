@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Copy, Check, Monitor, ChevronLeft, ChevronRight } from "lucide-react"
+import { Copy, Check, Monitor, ChevronLeft, ChevronRight, Plus, Globe, Pencil, Trash2, ToggleLeft, ToggleRight, ExternalLink } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
@@ -9,6 +9,62 @@ const AGENTS = [
   { id: "ag-001", name: "Agente Comercial" },
   { id: "ag-002", name: "Soporte Técnico" },
   { id: "ag-003", name: "Asistente General" },
+]
+
+type PublishedWidget = {
+  id: string
+  agentId: string
+  agentName: string
+  brandColor: string
+  bubbleColor: string
+  position: "left" | "right"
+  welcomeMsg: string
+  placeholder: string
+  active: boolean
+  createdAt: string
+  embedUrl: string
+}
+
+const INITIAL_WIDGETS: PublishedWidget[] = [
+  {
+    id: "w-001",
+    agentId: "ag-001",
+    agentName: "Agente Comercial",
+    brandColor: "#D4009A",
+    bubbleColor: "#5E24D5",
+    position: "right",
+    welcomeMsg: "Hola, ¿en qué puedo ayudarte?",
+    placeholder: "Escribe un mensaje...",
+    active: true,
+    createdAt: "12 Mar 2025",
+    embedUrl: "https://widget.krnl.ai/chat?agent=ag-001",
+  },
+  {
+    id: "w-002",
+    agentId: "ag-002",
+    agentName: "Soporte Técnico",
+    brandColor: "#0F2870",
+    bubbleColor: "#1B3A6E",
+    position: "left",
+    welcomeMsg: "Soporte técnico disponible 24/7",
+    placeholder: "Describe tu problema...",
+    active: true,
+    createdAt: "20 Mar 2025",
+    embedUrl: "https://widget.krnl.ai/chat?agent=ag-002",
+  },
+  {
+    id: "w-003",
+    agentId: "ag-003",
+    agentName: "Asistente General",
+    brandColor: "#059669",
+    bubbleColor: "#047857",
+    position: "right",
+    welcomeMsg: "¿En qué te puedo ayudar hoy?",
+    placeholder: "Escribe tu consulta...",
+    active: false,
+    createdAt: "25 Mar 2025",
+    embedUrl: "https://widget.krnl.ai/chat?agent=ag-003",
+  },
 ]
 
 // Sample conversation to showcase markdown rendering
@@ -103,8 +159,59 @@ export function WidgetView() {
   const [position, setPosition] = useState<"right" | "left">("right")
   const [chatOpen, setChatOpen] = useState(true)
   const [copied, setCopied] = useState(false)
+  const [publishedWidgets, setPublishedWidgets] = useState<PublishedWidget[]>(INITIAL_WIDGETS)
+  const [publishedId, setPublishedId] = useState<string | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [copiedWidget, setCopiedWidget] = useState<string | null>(null)
 
   const selectedAgent = AGENTS.find((a) => a.id === agentId)!
+
+  const handlePublish = () => {
+    const newWidget: PublishedWidget = {
+      id: `w-${Date.now()}`,
+      agentId,
+      agentName: selectedAgent.name,
+      brandColor,
+      bubbleColor,
+      position,
+      welcomeMsg,
+      placeholder,
+      active: true,
+      createdAt: new Date().toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" }),
+      embedUrl: `https://widget.krnl.ai/chat?agent=${agentId}&brand=${encodeURIComponent(brandColor)}&bubble=${encodeURIComponent(bubbleColor)}&position=${position}`,
+    }
+    setPublishedWidgets((prev) => [newWidget, ...prev])
+    setPublishedId(newWidget.id)
+    setTimeout(() => setPublishedId(null), 3000)
+  }
+
+  const handleToggleActive = (id: string) => {
+    setPublishedWidgets((prev) =>
+      prev.map((w) => (w.id === id ? { ...w, active: !w.active } : w))
+    )
+  }
+
+  const handleDelete = (id: string) => {
+    setPublishedWidgets((prev) => prev.filter((w) => w.id !== id))
+    setDeleteConfirm(null)
+  }
+
+  const handleCopyEmbed = (widget: PublishedWidget) => {
+    const code = `<iframe\n  src="${widget.embedUrl}"\n  style="position:fixed;${widget.position}:24px;bottom:24px;width:380px;height:600px;border:none;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,0.18);z-index:9999;"\n  allow="microphone"\n  title="KRNL Chat Widget - ${widget.agentName}"\n></iframe>`
+    navigator.clipboard.writeText(code)
+    setCopiedWidget(widget.id)
+    setTimeout(() => setCopiedWidget(null), 2000)
+  }
+
+  const handleLoadWidget = (widget: PublishedWidget) => {
+    setAgentId(widget.agentId)
+    setBrandColor(widget.brandColor)
+    setBubbleColor(widget.bubbleColor)
+    setPosition(widget.position)
+    setWelcomeMsg(widget.welcomeMsg)
+    setPlaceholder(widget.placeholder)
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
 
   const iframeCode = `<iframe
   src="https://widget.krnl.ai/chat?agent=${agentId}&brand=${encodeURIComponent(brandColor)}&bubble=${encodeURIComponent(bubbleColor)}&welcome=${encodeURIComponent(welcomeMsg)}&position=${position}"
@@ -420,27 +527,31 @@ export function WidgetView() {
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                 Codigo de integración
               </p>
-              <button
-                onClick={handleCopy}
-                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                style={
-                  copied
-                    ? { background: "#DCFCE7", color: "#16A34A" }
-                    : { background: "#F1F5F9", color: "#475569" }
-                }
-              >
-                {copied ? (
-                  <>
-                    <Check className="h-3.5 w-3.5" />
-                    Copiado
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-3.5 w-3.5" />
-                    Copiar código
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleCopy}
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                  style={
+                    copied
+                      ? { background: "#DCFCE7", color: "#16A34A" }
+                      : { background: "#F1F5F9", color: "#475569" }
+                  }
+                >
+                  {copied ? (
+                    <><Check className="h-3.5 w-3.5" />Copiado</>
+                  ) : (
+                    <><Copy className="h-3.5 w-3.5" />Copiar código</>
+                  )}
+                </button>
+                <button
+                  onClick={handlePublish}
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition-all"
+                  style={{ background: "#D4009A" }}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Publicar widget
+                </button>
+              </div>
             </div>
             <pre
               className="rounded-xl p-4 text-xs font-mono overflow-x-auto leading-relaxed"
@@ -448,8 +559,196 @@ export function WidgetView() {
             >
               <code>{iframeCode}</code>
             </pre>
+
+            {/* Published flash */}
+            {publishedId && (
+              <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium" style={{ background: "#DCFCE7", color: "#16A34A" }}>
+                <Check className="h-3.5 w-3.5" />
+                Widget publicado correctamente. Aparece en el mantenedor de widgets.
+              </div>
+            )}
           </div>
         </div>
+      </div>
+
+      {/* ── Widget Manager ───────────────────────────────────── */}
+      <div className="mt-10">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <div className="flex items-center gap-2.5 mb-1">
+              <Globe className="h-5 w-5 text-[#1B3A6E]" />
+              <h2 className="text-lg font-semibold text-[#1B2A3B]">Widgets publicados</h2>
+            </div>
+            <p className="text-sm text-slate-500">
+              Iframes activos que exponen agentes en sitios web. Gestiona, edita o desactiva cada uno.
+            </p>
+          </div>
+          <span
+            className="text-xs font-semibold px-2.5 py-1 rounded-full"
+            style={{ background: "#EEF2FF", color: "#0F2870" }}
+          >
+            {publishedWidgets.filter((w) => w.active).length} activos
+          </span>
+        </div>
+
+        {publishedWidgets.length === 0 ? (
+          <div className="bg-white border border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center py-16 text-slate-400">
+            <Globe className="h-10 w-10 mb-3 opacity-30" />
+            <p className="text-sm font-medium">No hay widgets publicados</p>
+            <p className="text-xs mt-1">Configura y publica tu primer widget arriba</p>
+          </div>
+        ) : (
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100">
+                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-5 py-3">Agente</th>
+                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-5 py-3">Colores</th>
+                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-5 py-3">Posición</th>
+                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-5 py-3">Creado</th>
+                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-5 py-3">Estado</th>
+                  <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider px-5 py-3">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {publishedWidgets.map((widget, i) => (
+                  <tr
+                    key={widget.id}
+                    className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors"
+                  >
+                    {/* Agent */}
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0"
+                          style={{ background: widget.brandColor }}
+                        >
+                          <Monitor className="h-4 w-4 text-white" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-slate-800">{widget.agentName}</p>
+                          <p className="text-xs text-slate-400 font-mono">{widget.id}</p>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Colors */}
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-1.5">
+                        <div
+                          className="h-5 w-5 rounded-full border border-white shadow-sm"
+                          style={{ background: widget.brandColor }}
+                          title={`Marca: ${widget.brandColor}`}
+                        />
+                        <div
+                          className="h-5 w-5 rounded-full border border-white shadow-sm"
+                          style={{ background: widget.bubbleColor }}
+                          title={`Burbuja: ${widget.bubbleColor}`}
+                        />
+                        <span className="text-xs text-slate-400 ml-1 font-mono">{widget.brandColor}</span>
+                      </div>
+                    </td>
+
+                    {/* Position */}
+                    <td className="px-5 py-4">
+                      <span
+                        className="text-xs font-medium px-2 py-0.5 rounded-full capitalize"
+                        style={{ background: "#F1F5F9", color: "#475569" }}
+                      >
+                        {widget.position === "right" ? "Derecha" : "Izquierda"}
+                      </span>
+                    </td>
+
+                    {/* Created */}
+                    <td className="px-5 py-4 text-xs text-slate-500">{widget.createdAt}</td>
+
+                    {/* Status */}
+                    <td className="px-5 py-4">
+                      <button
+                        onClick={() => handleToggleActive(widget.id)}
+                        className="flex items-center gap-1.5 text-xs font-medium transition-colors"
+                        style={widget.active ? { color: "#16A34A" } : { color: "#94A3B8" }}
+                      >
+                        {widget.active ? (
+                          <ToggleRight className="h-5 w-5" />
+                        ) : (
+                          <ToggleLeft className="h-5 w-5" />
+                        )}
+                        {widget.active ? "Activo" : "Inactivo"}
+                      </button>
+                    </td>
+
+                    {/* Actions */}
+                    <td className="px-5 py-4">
+                      <div className="flex items-center justify-end gap-1">
+                        {/* Copy embed code */}
+                        <button
+                          onClick={() => handleCopyEmbed(widget)}
+                          className="p-1.5 rounded-lg transition-colors hover:bg-slate-100 text-slate-500"
+                          title="Copiar código de integración"
+                        >
+                          {copiedWidget === widget.id ? (
+                            <Check className="h-4 w-4 text-green-500" />
+                          ) : (
+                            <Copy className="h-4 w-4" />
+                          )}
+                        </button>
+
+                        {/* Edit (load config) */}
+                        <button
+                          onClick={() => handleLoadWidget(widget)}
+                          className="p-1.5 rounded-lg transition-colors hover:bg-slate-100 text-slate-500"
+                          title="Editar configuración"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+
+                        {/* Open embed URL */}
+                        <a
+                          href={widget.embedUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 rounded-lg transition-colors hover:bg-slate-100 text-slate-500"
+                          title="Ver URL del widget"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+
+                        {/* Delete */}
+                        {deleteConfirm === widget.id ? (
+                          <div className="flex items-center gap-1 ml-1">
+                            <button
+                              onClick={() => handleDelete(widget.id)}
+                              className="text-xs font-semibold px-2 py-1 rounded-lg"
+                              style={{ background: "#FEE2E2", color: "#DC2626" }}
+                            >
+                              Confirmar
+                            </button>
+                            <button
+                              onClick={() => setDeleteConfirm(null)}
+                              className="text-xs px-2 py-1 rounded-lg"
+                              style={{ background: "#F1F5F9", color: "#475569" }}
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setDeleteConfirm(widget.id)}
+                            className="p-1.5 rounded-lg transition-colors hover:bg-red-50 text-slate-400 hover:text-red-500"
+                            title="Eliminar widget"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )
