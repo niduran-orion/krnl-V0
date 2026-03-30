@@ -99,7 +99,7 @@ const navSections = [
     items: [
       { icon: Code2,     label: "Agent Studio",         href: "#" },
       { icon: GitBranch, label: "Workflows",             href: "#" },
-      { icon: Shield,    label: "Guardrails / Políticas",href: "#" },
+      { icon: Shield,    label: "Guardrails / Políticas",href: "/guardrails" },
       { icon: FileText,  label: "Logs / Observabilidad", href: "#" },
       { icon: Wrench,    label: "Config MCP / Tools",    href: "#" },
     ],
