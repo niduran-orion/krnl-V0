@@ -20,6 +20,10 @@ import {
   Zap,
   Eye,
   MoreHorizontal,
+  FileText,
+  BookOpen,
+  Save,
+  RotateCcw,
 } from "lucide-react"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
