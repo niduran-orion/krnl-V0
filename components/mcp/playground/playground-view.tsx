@@ -794,30 +794,23 @@ export function PlaygroundView() {
       })
     )
 
-      setIsStreaming(false)
-      // Reveal the executed step + any remaining steps after it
-      setVisibleSteps((prev) => new Set([...prev, stepId]))
-      // The response step was pushed into steps array, reveal it after brief delay
+    setIsStreaming(true)
+    setPendingStreamMsgId(streamMsgId)
+
+    let delay = 0
+    steps.forEach((step) => {
+      delay += step.kind === "agent-thinking" ? 600 : 450
       setTimeout(() => {
-        setConversations((latest) => {
-          const conv = latest.find((c) => c.id === activeConvId)
-          const msg = conv?.messages.find((m) => m.id === msgId)
-          if (msg?.steps) {
-            const approvalIdx = msg.steps.findIndex((s) => s.id === stepId)
-            const remaining = msg.steps.slice(approvalIdx + 1)
-            remaining.forEach((s, i) => {
-              setTimeout(() => {
-                setVisibleSteps((prev) => new Set([...prev, s.id]))
-              }, i * 400)
-            })
-          }
-          return latest
-        })
-      }, 300)
-    setConversations((prev) => [newConv, ...prev])
-    setActiveConvId(newConv.id)
-    setVisibleSteps(new Set())
-    setIsStreaming(false)
+        if (step.kind === "tool-approval") {
+          setIsStreaming(false)
+        }
+        setVisibleSteps((prev) => new Set([...prev, step.id]))
+        if (step.kind === "response") {
+          setIsStreaming(false)
+          setPendingStreamMsgId(null)
+        }
+      }, delay)
+    })
   }
 
   const handleReset = () => {
