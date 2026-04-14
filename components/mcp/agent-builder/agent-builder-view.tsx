@@ -3,21 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import {
-  Plus,
-  Search,
-  Send,
-  Trash2,
-  MoreHorizontal,
-  Pencil,
-  Sparkles,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Bot,
-  Check,
-  X,
-} from "lucide-react"
-import { cn } from "@/lib/utils"
+import { Send, Sparkles, RotateCcw } from "lucide-react"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -27,17 +13,9 @@ interface Message {
   id: string
   role: Role
   content: string
-  thinking?: boolean
 }
 
-interface Conversation {
-  id: string
-  title: string
-  updatedAt: string
-  messages: Message[]
-}
-
-// ── Sample data ───────────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const WELCOME: Message = {
   id: "welcome",
@@ -55,56 +33,6 @@ Puedo ayudarte a:
 ¿Con qué tipo de agente quieres empezar?`,
 }
 
-const INITIAL_CONVS: Conversation[] = [
-  {
-    id: "c1",
-    title: "Agente de soporte técnico",
-    updatedAt: "Hace 2 h",
-    messages: [
-      WELCOME,
-      { id: "u1", role: "user", content: "Quiero crear un agente de soporte técnico para mi empresa." },
-      {
-        id: "a1",
-        role: "assistant",
-        content: `Perfecto. Para empezar necesito entender el contexto:
-
-1. **¿Qué producto o servicio** soportará el agente?
-2. **¿Cuál es el canal principal?** (chat web, WhatsApp, Slack, etc.)
-3. **¿Tienes documentación existente?** (manuales, FAQs, tickets resueltos)
-
-Con esta información podré sugerirte la arquitectura ideal.`,
-      },
-    ],
-  },
-  {
-    id: "c2",
-    title: "Agente comercial RRHH",
-    updatedAt: "Ayer",
-    messages: [
-      WELCOME,
-      { id: "u2", role: "user", content: "Necesito un agente para responder preguntas de RRHH." },
-      {
-        id: "a2",
-        role: "assistant",
-        content: `Un agente de RRHH es ideal para automatizar consultas frecuentes sobre vacaciones, beneficios y políticas internas.
-
-Te recomiendo empezar con:
-- **Colección de conocimiento**: subir el manual de empleados y políticas
-- **Guardrail**: limitar respuestas solo a temas laborales
-- **Canal**: Widget Web para el portal interno
-
-¿Tienes los documentos de RRHH listos para subir?`,
-      },
-    ],
-  },
-  {
-    id: "c3",
-    title: "Bot de ventas ecommerce",
-    updatedAt: "Hace 3 días",
-    messages: [WELCOME],
-  },
-]
-
 const SUGGESTIONS = [
   "Crear un agente de atención al cliente",
   "Ayúdame a configurar un agente de ventas",
@@ -112,9 +40,8 @@ const SUGGESTIONS = [
   "Construir un agente que busque en mi CRM",
 ]
 
-// Simulated KRNL Agent responses
-const KRNL_RESPONSES: Record<number, string> = {
-  0: `Entendido. Para construir ese agente necesito definir tres pilares:
+const KRNL_RESPONSES = [
+  `Entendido. Para construir ese agente necesito definir tres pilares:
 
 **1. Objetivo**
 ¿Cuál es la tarea principal del agente? (responder preguntas, ejecutar acciones, calificar leads, etc.)
@@ -126,7 +53,7 @@ const KRNL_RESPONSES: Record<number, string> = {
 ¿Necesita hacer algo además de responder? (enviar emails, crear tickets, buscar en CRM)
 
 Cuéntame más sobre tu caso de uso y te armo la configuración.`,
-  1: `Perfecto. Basándome en lo que me comentas, te sugiero esta arquitectura:
+  `Perfecto. Basándome en lo que me comentas, te sugiero esta arquitectura:
 
 \`\`\`
 Agente Principal
@@ -137,14 +64,22 @@ Agente Principal
 \`\`\`
 
 ¿Quieres que empecemos configurando el **Objetivo** o prefieres subir los documentos primero?`,
-  2: `Excelente elección. Para el canal que mencionas te recomiendo:
+  `Excelente elección. Para el canal que mencionas te recomiendo:
 
 - **Widget Web** embebido en tu sitio con colores de marca
 - **WhatsApp** para consultas fuera del horario laboral
 - **Webhook** para integrar con tu CRM actual
 
 ¿Tienes alguna restricción técnica que deba considerar en la configuración?`,
-}
+  `Listo. Con la información que me diste puedo generar el borrador del agente. Esto incluye:
+
+1. **Nombre y descripción** del agente
+2. **Prompt de sistema** con el rol y restricciones
+3. **Colecciones** sugeridas para el conocimiento
+4. **Guardrail** recomendado según el dominio
+
+¿Quieres que lo genere ahora o prefieres ajustar algún parámetro antes?`,
+]
 
 // ── Markdown renderer ─────────────────────────────────────────────────────────
 
@@ -154,27 +89,46 @@ function MsgMarkdown({ content }: { content: string }) {
       remarkPlugins={[remarkGfm]}
       components={{
         p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
-        strong: ({ children }) => <strong className="font-semibold text-[#0F2870]">{children}</strong>,
+        strong: ({ children }) => (
+          <strong className="font-semibold" style={{ color: "#0F2870" }}>
+            {children}
+          </strong>
+        ),
         ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-2">{children}</ul>,
         ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-2">{children}</ol>,
-        li: ({ children }) => <li className="text-[#374151]">{children}</li>,
+        li: ({ children }) => <li style={{ color: "#374151" }}>{children}</li>,
         code: ({ inline, children }: any) =>
           inline ? (
-            <code className="px-1.5 py-0.5 rounded text-xs font-mono bg-[#F0F4FF] text-[#0F2870]">
+            <code
+              className="px-1.5 py-0.5 rounded text-xs font-mono"
+              style={{ background: "#EEF2FF", color: "#0F2870" }}
+            >
               {children}
             </code>
           ) : (
-            <pre className="my-2 p-3 rounded-xl bg-[#0F1629] text-[#94A3B8] text-xs font-mono overflow-x-auto leading-relaxed">
+            <pre
+              className="my-2 p-3 rounded-xl text-xs font-mono overflow-x-auto leading-relaxed"
+              style={{ background: "#0F1629", color: "#94A3B8" }}
+            >
               <code>{children}</code>
             </pre>
           ),
         blockquote: ({ children }) => (
-          <blockquote className="border-l-2 border-[#D4009A] pl-3 italic text-[#6B7280] mb-2">
+          <blockquote
+            className="border-l-2 pl-3 italic mb-2"
+            style={{ borderColor: "#D4009A", color: "#6B7280" }}
+          >
             {children}
           </blockquote>
         ),
         a: ({ href, children }) => (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#D4009A] underline underline-offset-2 hover:opacity-80">
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:opacity-80"
+            style={{ color: "#D4009A" }}
+          >
             {children}
           </a>
         ),
@@ -188,31 +142,18 @@ function MsgMarkdown({ content }: { content: string }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function AgentBuilderView() {
-  const [conversations, setConversations] = useState<Conversation[]>(INITIAL_CONVS)
-  const [activeId, setActiveId] = useState<string>("c1")
+  const [messages, setMessages] = useState<Message[]>([WELCOME])
   const [input, setInput] = useState("")
   const [isThinking, setIsThinking] = useState(false)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [search, setSearch] = useState("")
-  const [menuOpen, setMenuOpen] = useState<string | null>(null)
-  const [renaming, setRenaming] = useState<string | null>(null)
-  const [renameVal, setRenameVal] = useState("")
   const [responseIdx, setResponseIdx] = useState(0)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const activeConv = conversations.find((c) => c.id === activeId)!
-
-  const filtered = conversations.filter((c) =>
-    c.title.toLowerCase().includes(search.toLowerCase())
-  )
-
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [activeConv?.messages, isThinking])
+  }, [messages, isThinking])
 
-  // Auto-resize textarea
   useEffect(() => {
     const ta = textareaRef.current
     if (!ta) return
@@ -220,53 +161,28 @@ export default function AgentBuilderView() {
     ta.style.height = Math.min(ta.scrollHeight, 180) + "px"
   }, [input])
 
-  const handleNewConv = () => {
-    const id = `c-${Date.now()}`
-    const newConv: Conversation = {
-      id,
-      title: "Nueva conversación",
-      updatedAt: "Ahora",
-      messages: [{ ...WELCOME, id: `w-${id}` }],
-    }
-    setConversations((prev) => [newConv, ...prev])
-    setActiveId(id)
-    setInput("")
-  }
+  const handleSend = (text?: string) => {
+    const content = (text ?? input).trim()
+    if (!content || isThinking) return
 
-  const handleSend = () => {
-    const text = input.trim()
-    if (!text || isThinking) return
-
-    const userMsg: Message = { id: `u-${Date.now()}`, role: "user", content: text }
-    setConversations((prev) =>
-      prev.map((c) =>
-        c.id !== activeId
-          ? c
-          : {
-              ...c,
-              title: c.messages.length <= 1 ? text.slice(0, 48) : c.title,
-              updatedAt: "Ahora",
-              messages: [...c.messages, userMsg],
-            }
-      )
-    )
+    const userMsg: Message = { id: `u-${Date.now()}`, role: "user", content }
+    setMessages((prev) => [...prev, userMsg])
     setInput("")
     setIsThinking(true)
 
-    // Simulate streaming response
     setTimeout(() => {
-      const reply = KRNL_RESPONSES[responseIdx % Object.keys(KRNL_RESPONSES).length]
+      const reply = KRNL_RESPONSES[responseIdx % KRNL_RESPONSES.length]
       setResponseIdx((i) => i + 1)
-      const assistantMsg: Message = { id: `a-${Date.now()}`, role: "assistant", content: reply }
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id !== activeId
-            ? c
-            : { ...c, messages: [...c.messages, assistantMsg] }
-        )
-      )
+      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: "assistant", content: reply }])
       setIsThinking(false)
     }, 1400)
+  }
+
+  const handleReset = () => {
+    setMessages([{ ...WELCOME, id: `w-${Date.now()}` }])
+    setInput("")
+    setResponseIdx(0)
+    setIsThinking(false)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -276,210 +192,58 @@ export default function AgentBuilderView() {
     }
   }
 
-  const handleDelete = (id: string) => {
-    const next = conversations.filter((c) => c.id !== id)
-    setConversations(next)
-    if (activeId === id) setActiveId(next[0]?.id ?? "")
-    setMenuOpen(null)
-  }
-
-  const handleRename = (id: string) => {
-    setConversations((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, title: renameVal.trim() || c.title } : c))
-    )
-    setRenaming(null)
-  }
+  const isEmpty = messages.length === 1 && messages[0].role === "assistant"
 
   return (
-    <div className="flex h-full overflow-hidden" style={{ background: "#F8F9FC" }}>
+    <div className="flex flex-col h-full" style={{ background: "#F8F9FC" }}>
 
-      {/* ── Left sidebar ────────────────────────────────────────────────────── */}
-      <aside
-        className={cn(
-          "flex flex-col shrink-0 transition-all duration-200 border-r border-[rgba(145,158,171,0.16)]",
-          sidebarOpen ? "w-64" : "w-0 overflow-hidden"
-        )}
-        style={{ background: "#0F1629" }}
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
+      <div
+        className="flex items-center gap-3 px-6 py-3.5 border-b shrink-0"
+        style={{ background: "#FFFFFF", borderColor: "rgba(145,158,171,0.16)" }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 pt-5 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div
-              className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0"
-              style={{ background: "linear-gradient(135deg,#D4009A,#5E24D5)" }}
-            >
-              <Sparkles className="h-3.5 w-3.5 text-white" />
-            </div>
-            <span className="text-sm font-semibold text-white">KRNL Agent</span>
-          </div>
-          <button
-            onClick={handleNewConv}
-            className="h-7 w-7 rounded-lg flex items-center justify-center transition-colors hover:bg-white/10"
-            title="Nueva conversación"
+        <div
+          className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: "linear-gradient(135deg,#D4009A,#5E24D5)" }}
+        >
+          <Sparkles className="h-4 w-4 text-white" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold" style={{ color: "#1C2434" }}>
+            KRNL Agent
+          </p>
+          <p className="text-[11px]" style={{ color: "#637381" }}>
+            Agent Builder — construye tu agente CORE
+          </p>
+        </div>
+
+        <div className="ml-auto flex items-center gap-3">
+          <span
+            className="text-[11px] font-medium px-2.5 py-1 rounded-full"
+            style={{ background: "#F0FFF4", color: "#16A34A" }}
           >
-            <Plus className="h-4 w-4 text-white/60" />
+            En línea
+          </span>
+          <button
+            onClick={handleReset}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors"
+            style={{ background: "#F4F6F8", color: "#637381" }}
+            title="Nueva sesión"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Nueva sesión
           </button>
         </div>
+      </div>
 
-        {/* Search */}
-        <div className="px-3 mb-3">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: "rgba(255,255,255,0.06)" }}>
-            <Search className="h-3.5 w-3.5 shrink-0" style={{ color: "rgba(255,255,255,0.3)" }} />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar conversaciones..."
-              className="flex-1 bg-transparent text-xs outline-none placeholder:text-white/30 text-white/80"
-            />
-          </div>
-        </div>
+      {/* ── Messages ────────────────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
 
-        {/* Conversation list */}
-        <div className="flex-1 overflow-y-auto px-2 space-y-0.5 pb-4">
-          {filtered.length === 0 && (
-            <p className="text-xs text-white/30 text-center mt-6">Sin resultados</p>
-          )}
-          {filtered.map((conv) => (
-            <div key={conv.id} className="relative group">
-              {renaming === conv.id ? (
-                <div className="flex items-center gap-1 px-2 py-1.5">
-                  <input
-                    autoFocus
-                    value={renameVal}
-                    onChange={(e) => setRenameVal(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleRename(conv.id)
-                      if (e.key === "Escape") setRenaming(null)
-                    }}
-                    className="flex-1 bg-white/10 text-white text-xs px-2 py-1 rounded-lg outline-none"
-                  />
-                  <button onClick={() => handleRename(conv.id)} className="text-green-400 hover:text-green-300">
-                    <Check className="h-3.5 w-3.5" />
-                  </button>
-                  <button onClick={() => setRenaming(null)} className="text-white/40 hover:text-white/60">
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => { setActiveId(conv.id); setMenuOpen(null) }}
-                  className={cn(
-                    "w-full text-left px-3 py-2.5 rounded-xl transition-colors",
-                    activeId === conv.id
-                      ? "bg-white/12 text-white"
-                      : "text-white/50 hover:bg-white/6 hover:text-white/80"
-                  )}
-                  style={activeId === conv.id ? { background: "rgba(255,255,255,0.1)" } : {}}
-                >
-                  <p className="text-xs font-medium truncate">{conv.title}</p>
-                  <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>
-                    {conv.updatedAt}
-                  </p>
-                </button>
-              )}
-
-              {/* Context menu */}
-              <div className={cn("absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5", renaming === conv.id ? "hidden" : "opacity-0 group-hover:opacity-100 transition-opacity")}>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === conv.id ? null : conv.id) }}
-                  className="h-6 w-6 rounded-lg flex items-center justify-center hover:bg-white/10 text-white/40 hover:text-white/70"
-                >
-                  <MoreHorizontal className="h-3.5 w-3.5" />
-                </button>
-              </div>
-
-              {menuOpen === conv.id && (
-                <div
-                  className="absolute right-1 top-8 z-50 rounded-xl border overflow-hidden shadow-xl py-1 min-w-[140px]"
-                  style={{ background: "#1E2D4A", borderColor: "rgba(255,255,255,0.08)" }}
-                >
-                  <button
-                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-white/70 hover:bg-white/8 hover:text-white transition-colors"
-                    onClick={() => { setRenameVal(conv.title); setRenaming(conv.id); setMenuOpen(null) }}
-                  >
-                    <Pencil className="h-3.5 w-3.5" /> Renombrar
-                  </button>
-                  <button
-                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-400 hover:bg-white/8 transition-colors"
-                    onClick={() => handleDelete(conv.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" /> Eliminar
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* Footer */}
-        <div
-          className="px-4 py-3 border-t flex items-center gap-2.5"
-          style={{ borderColor: "rgba(255,255,255,0.06)" }}
-        >
-          <div
-            className="h-7 w-7 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold text-white"
-            style={{ background: "#D4009A" }}
-          >
-            UA
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-white/80 truncate">Usuario Admin</p>
-            <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.3)" }}>Mi Organización</p>
-          </div>
-        </div>
-      </aside>
-
-      {/* ── Main chat area ───────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-
-        {/* Topbar */}
-        <div
-          className="flex items-center gap-3 px-5 py-3.5 border-b shrink-0"
-          style={{ background: "#FFFFFF", borderColor: "rgba(145,158,171,0.16)" }}
-        >
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1.5 rounded-lg transition-colors hover:bg-[#F4F6F8] text-[#637381]"
-          >
-            {sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
-          </button>
-
-          <div className="h-4 w-px bg-[#E5E7EB]" />
-
-          {/* KRNL Agent badge */}
-          <div className="flex items-center gap-2">
-            <div
-              className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0"
-              style={{ background: "linear-gradient(135deg,#D4009A,#5E24D5)" }}
-            >
-              <Sparkles className="h-3.5 w-3.5 text-white" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold" style={{ color: "#1C2434" }}>KRNL Agent</p>
-              <p className="text-[11px]" style={{ color: "#637381" }}>Agent Builder</p>
-            </div>
-          </div>
-
-          <div className="ml-auto flex items-center gap-2">
-            <span
-              className="text-[11px] font-medium px-2.5 py-1 rounded-full"
-              style={{ background: "#F0FFF4", color: "#16A34A" }}
-            >
-              En línea
-            </span>
-          </div>
-        </div>
-
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6" onClick={() => setMenuOpen(null)}>
-          {activeConv?.messages.length === 0 && !isThinking && (
-            <EmptyState onSuggest={(s) => { setInput(s); textareaRef.current?.focus() }} />
-          )}
-
-          {activeConv?.messages.map((msg) => (
+          {messages.map((msg) => (
             <div
               key={msg.id}
-              className={cn("flex gap-3", msg.role === "user" ? "flex-row-reverse" : "flex-row")}
+              className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
             >
               {/* Avatar */}
               {msg.role === "assistant" ? (
@@ -491,7 +255,7 @@ export default function AgentBuilderView() {
                 </div>
               ) : (
                 <div
-                  className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold text-white"
+                  className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold text-white"
                   style={{ background: "#0F2870" }}
                 >
                   UA
@@ -500,11 +264,18 @@ export default function AgentBuilderView() {
 
               {/* Bubble */}
               <div
-                className={cn("max-w-[72%] rounded-2xl px-4 py-3 text-sm", msg.role === "user" ? "rounded-tr-sm" : "rounded-tl-sm")}
+                className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm ${
+                  msg.role === "user" ? "rounded-tr-sm" : "rounded-tl-sm"
+                }`}
                 style={
                   msg.role === "user"
                     ? { background: "#0F2870", color: "#FFFFFF" }
-                    : { background: "#FFFFFF", color: "#1C2434", border: "1px solid rgba(145,158,171,0.16)" }
+                    : {
+                        background: "#FFFFFF",
+                        color: "#1C2434",
+                        border: "1px solid rgba(145,158,171,0.16)",
+                        boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+                      }
                 }
               >
                 {msg.role === "user" ? (
@@ -527,7 +298,11 @@ export default function AgentBuilderView() {
               </div>
               <div
                 className="rounded-2xl rounded-tl-sm px-4 py-3"
-                style={{ background: "#FFFFFF", border: "1px solid rgba(145,158,171,0.16)" }}
+                style={{
+                  background: "#FFFFFF",
+                  border: "1px solid rgba(145,158,171,0.16)",
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+                }}
               >
                 <div className="flex items-center gap-1.5">
                   {[0, 1, 2].map((i) => (
@@ -545,91 +320,77 @@ export default function AgentBuilderView() {
             </div>
           )}
 
+          {/* Suggestion chips — shown only on welcome state */}
+          {isEmpty && !isThinking && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => handleSend(s)}
+                  className="text-xs px-3.5 py-2 rounded-full border transition-all hover:shadow-sm"
+                  style={{
+                    background: "#FFFFFF",
+                    borderColor: "rgba(145,158,171,0.24)",
+                    color: "#1C2434",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = "#D4009A"
+                    e.currentTarget.style.color = "#D4009A"
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "rgba(145,158,171,0.24)"
+                    e.currentTarget.style.color = "#1C2434"
+                  }}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
         </div>
+      </div>
 
-        {/* Input */}
-        <div
-          className="px-6 py-4 border-t shrink-0"
-          style={{ background: "#FFFFFF", borderColor: "rgba(145,158,171,0.16)" }}
-        >
+      {/* ── Input area ──────────────────────────────────────────────────────── */}
+      <div className="shrink-0 border-t px-4 py-4" style={{ background: "#FFFFFF", borderColor: "rgba(145,158,171,0.16)" }}>
+        <div className="max-w-3xl mx-auto">
           <div
-            className="flex items-end gap-3 rounded-2xl border px-4 py-3 transition-colors focus-within:border-[#D4009A]"
-            style={{ borderColor: "rgba(145,158,171,0.24)", background: "#F8F9FC" }}
+            className="flex items-end gap-3 rounded-2xl border px-4 py-3 transition-all focus-within:shadow-sm"
+            style={{
+              background: "#F8F9FC",
+              borderColor: "rgba(145,158,171,0.24)",
+            }}
+            onFocus={() => {}}
           >
             <textarea
               ref={textareaRef}
+              rows={1}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Escribe tu mensaje... (Enter para enviar, Shift+Enter para nueva línea)"
-              rows={1}
-              className="flex-1 bg-transparent text-sm outline-none resize-none text-[#1C2434] placeholder:text-[#9AA1B4] leading-relaxed"
-              style={{ maxHeight: 180 }}
+              placeholder="Describe el agente que quieres construir..."
+              className="flex-1 bg-transparent text-sm outline-none resize-none leading-relaxed placeholder:text-[#9AA3B0]"
+              style={{ color: "#1C2434", minHeight: "24px", maxHeight: "180px" }}
+              disabled={isThinking}
             />
             <button
-              onClick={handleSend}
+              onClick={() => handleSend()}
               disabled={!input.trim() || isThinking}
-              className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ background: input.trim() && !isThinking ? "#D4009A" : "#E5E7EB" }}
+              className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0 transition-all"
+              style={
+                input.trim() && !isThinking
+                  ? { background: "#D4009A", color: "#FFFFFF" }
+                  : { background: "#E5E7EB", color: "#9CA3AF" }
+              }
             >
-              <Send className="h-3.5 w-3.5" style={{ color: input.trim() && !isThinking ? "#FFFFFF" : "#9CA3AF" }} />
+              <Send className="h-3.5 w-3.5" />
             </button>
           </div>
-          <p className="text-center text-[11px] mt-2" style={{ color: "#9AA1B4" }}>
-            KRNL Agent puede cometer errores. Verifica información importante antes de publicar tu agente.
+          <p className="text-[11px] text-center mt-2" style={{ color: "#9AA3B0" }}>
+            Presiona Enter para enviar · Shift+Enter para nueva línea
           </p>
         </div>
-      </div>
-
-      <style jsx>{`
-        @keyframes bounce {
-          0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
-          40% { transform: translateY(-6px); opacity: 1; }
-        }
-      `}</style>
-    </div>
-  )
-}
-
-// ── Empty state ───────────────────────────────────────────────────────────────
-
-function EmptyState({ onSuggest }: { onSuggest: (s: string) => void }) {
-  const suggestions = [
-    "Crear un agente de atención al cliente",
-    "Ayúdame a configurar un agente de ventas",
-    "Quiero un bot para responder preguntas de RRHH",
-    "Construir un agente que busque en mi CRM",
-  ]
-  return (
-    <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-      <div
-        className="h-14 w-14 rounded-2xl flex items-center justify-center mb-4"
-        style={{ background: "linear-gradient(135deg,#D4009A22,#5E24D522)", border: "1px solid #D4009A33" }}
-      >
-        <Sparkles className="h-7 w-7" style={{ color: "#D4009A" }} />
-      </div>
-      <h2 className="text-xl font-bold mb-1.5" style={{ color: "#1C2434" }}>
-        ¿Qué agente quieres construir hoy?
-      </h2>
-      <p className="text-sm mb-8 max-w-sm" style={{ color: "#637381" }}>
-        Cuéntame tu caso de uso y te ayudaré a configurar tu agente CORE paso a paso.
-      </p>
-      <div className="grid grid-cols-2 gap-3 w-full max-w-lg">
-        {suggestions.map((s) => (
-          <button
-            key={s}
-            onClick={() => onSuggest(s)}
-            className="text-left px-4 py-3 rounded-xl border text-sm transition-all hover:border-[#D4009A] hover:bg-[#FFF0FA]"
-            style={{
-              borderColor: "rgba(145,158,171,0.24)",
-              background: "#FFFFFF",
-              color: "#374151",
-            }}
-          >
-            {s}
-          </button>
-        ))}
       </div>
     </div>
   )
