@@ -1,27 +1,25 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import Link from "next/link"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import {
   Plus,
   Search,
-  ArrowLeft,
   Send,
-  Cpu,
-  ChevronDown,
   Trash2,
   MoreHorizontal,
   Pencil,
-  Bot,
   Sparkles,
   PanelLeftClose,
   PanelLeftOpen,
+  Bot,
+  Check,
+  X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type Role = "user" | "assistant"
 
@@ -41,7 +39,7 @@ interface Conversation {
 
 // ── Sample data ───────────────────────────────────────────────────────────────
 
-const WELCOME_MESSAGE: Message = {
+const WELCOME: Message = {
   id: "welcome",
   role: "assistant",
   content: `Hola, soy **KRNL Agent** — tu asistente para construir agentes CORE.
@@ -49,7 +47,7 @@ const WELCOME_MESSAGE: Message = {
 Puedo ayudarte a:
 
 - Definir el **objetivo y personalidad** de tu agente
-- Configurar su **base de conocimiento** (fuentes, colecciones)
+- Configurar su **base de conocimiento** (fuentes y colecciones)
 - Seleccionar **herramientas** y capacidades
 - Ajustar los **parámetros del modelo** (temperatura, contexto, guardrails)
 - Publicar y conectar tu agente a canales
@@ -57,20 +55,18 @@ Puedo ayudarte a:
 ¿Con qué tipo de agente quieres empezar?`,
 }
 
-const INITIAL_CONVERSATIONS: Conversation[] = [
+const INITIAL_CONVS: Conversation[] = [
   {
     id: "c1",
     title: "Agente de soporte técnico",
     updatedAt: "Hace 2 h",
     messages: [
-      WELCOME_MESSAGE,
+      WELCOME,
       { id: "u1", role: "user", content: "Quiero crear un agente de soporte técnico para mi empresa." },
       {
         id: "a1",
         role: "assistant",
-        content: `Perfecto. Un agente de soporte técnico es uno de los casos de uso más potentes de KRNL.
-
-Para empezar, necesito entender el contexto:
+        content: `Perfecto. Para empezar necesito entender el contexto:
 
 1. **¿Qué producto o servicio** soportará el agente?
 2. **¿Cuál es el canal principal?** (chat web, WhatsApp, Slack, etc.)
@@ -82,70 +78,103 @@ Con esta información podré sugerirte la arquitectura ideal.`,
   },
   {
     id: "c2",
-    title: "Asistente de onboarding RRHH",
+    title: "Agente comercial RRHH",
     updatedAt: "Ayer",
-    messages: [WELCOME_MESSAGE],
+    messages: [
+      WELCOME,
+      { id: "u2", role: "user", content: "Necesito un agente para responder preguntas de RRHH." },
+      {
+        id: "a2",
+        role: "assistant",
+        content: `Un agente de RRHH es ideal para automatizar consultas frecuentes sobre vacaciones, beneficios y políticas internas.
+
+Te recomiendo empezar con:
+- **Colección de conocimiento**: subir el manual de empleados y políticas
+- **Guardrail**: limitar respuestas solo a temas laborales
+- **Canal**: Widget Web para el portal interno
+
+¿Tienes los documentos de RRHH listos para subir?`,
+      },
+    ],
   },
   {
     id: "c3",
-    title: "Bot de ventas e-commerce",
-    updatedAt: "2 abr",
-    messages: [WELCOME_MESSAGE],
+    title: "Bot de ventas ecommerce",
+    updatedAt: "Hace 3 días",
+    messages: [WELCOME],
   },
 ]
 
-const SUGGESTED_PROMPTS = [
-  { label: "Agente de soporte", description: "Responde tickets y consultas técnicas" },
-  { label: "Asistente de ventas", description: "Califica leads y responde preguntas de producto" },
-  { label: "Bot de RRHH", description: "Onboarding, políticas y consultas internas" },
-  { label: "Agente de conocimiento", description: "Busca en documentos y bases de datos" },
+const SUGGESTIONS = [
+  "Crear un agente de atención al cliente",
+  "Ayúdame a configurar un agente de ventas",
+  "Quiero un bot para responder preguntas de RRHH",
+  "Construir un agente que busque en mi CRM",
 ]
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// Simulated KRNL Agent responses
+const KRNL_RESPONSES: Record<number, string> = {
+  0: `Entendido. Para construir ese agente necesito definir tres pilares:
 
-function formatId() {
-  return Math.random().toString(36).slice(2, 10)
-}
+**1. Objetivo**
+¿Cuál es la tarea principal del agente? (responder preguntas, ejecutar acciones, calificar leads, etc.)
 
-function buildAssistantReply(userText: string): string {
-  const lower = userText.toLowerCase()
-  if (lower.includes("nombre") || lower.includes("llamar") || lower.includes("llama"))
-    return `Buen nombre. Ahora cuéntame: **¿cuál es el objetivo principal** de este agente? ¿Qué problema resuelve para tus usuarios?`
-  if (lower.includes("objetivo") || lower.includes("propósito") || lower.includes("para qué"))
-    return `Claro. Con ese objetivo en mente, ¿el agente necesitará acceder a **documentos o bases de conocimiento** existentes, o partirá desde cero?`
-  if (lower.includes("documento") || lower.includes("conocimiento") || lower.includes("fuente"))
-    return `Perfecto. Puedo conectar colecciones de documentos PDF, URLs, o bases de datos directamente.\n\n¿Qué **herramientas externas** necesitará el agente? (ej: enviar emails, buscar en CRM, crear tickets)`
-  if (lower.includes("herramienta") || lower.includes("crm") || lower.includes("email") || lower.includes("ticket"))
-    return `Excelente configuración. Finalmente, ¿en qué **canales** publicarás este agente?\n\n- Widget web (iframe)\n- WhatsApp / Telegram\n- Slack / Teams\n- API directa`
-  if (lower.includes("canal") || lower.includes("whatsapp") || lower.includes("web") || lower.includes("slack"))
-    return `Todo listo. Basándome en lo que me contaste, voy a generar la configuración inicial de tu agente CORE.\n\n**Resumen de tu agente:**\n- Objetivo definido\n- Base de conocimiento conectada\n- Herramientas configuradas\n- Canal de publicación seleccionado\n\n¿Quieres que lo cree ahora o ajustamos algo antes?`
-  return `Entendido. Para continuar configurando tu agente, ¿podrías darme más detalles sobre ese punto? Mientras más contexto tengas, mejor podré ajustar los parámetros del modelo y las capacidades del agente.`
+**2. Conocimiento**
+¿Qué información debe conocer? (documentos, base de datos, APIs externas)
+
+**3. Herramientas**
+¿Necesita hacer algo además de responder? (enviar emails, crear tickets, buscar en CRM)
+
+Cuéntame más sobre tu caso de uso y te armo la configuración.`,
+  1: `Perfecto. Basándome en lo que me comentas, te sugiero esta arquitectura:
+
+\`\`\`
+Agente Principal
+├── Guardrail: Llama Guard 3
+├── Colección: docs-cliente
+├── Herramientas: Buscar CRM, Crear ticket
+└── Modelo: GPT-4o mini (temperatura: 0.3)
+\`\`\`
+
+¿Quieres que empecemos configurando el **Objetivo** o prefieres subir los documentos primero?`,
+  2: `Excelente elección. Para el canal que mencionas te recomiendo:
+
+- **Widget Web** embebido en tu sitio con colores de marca
+- **WhatsApp** para consultas fuera del horario laboral
+- **Webhook** para integrar con tu CRM actual
+
+¿Tienes alguna restricción técnica que deba considerar en la configuración?`,
 }
 
 // ── Markdown renderer ─────────────────────────────────────────────────────────
 
-function MdContent({ content, light = false }: { content: string; light?: boolean }) {
+function MsgMarkdown({ content }: { content: string }) {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
         p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
-        strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-        ul: ({ children }) => <ul className="list-disc list-outside ml-4 space-y-1 mb-2">{children}</ul>,
-        ol: ({ children }) => <ol className="list-decimal list-outside ml-4 space-y-1 mb-2">{children}</ol>,
-        li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-        code: ({ children }) => (
-          <code
-            className={cn(
-              "px-1.5 py-0.5 rounded text-xs font-mono",
-              light ? "bg-white/10 text-white" : "bg-slate-100 text-[#0F2870]"
-            )}
-          >
+        strong: ({ children }) => <strong className="font-semibold text-[#0F2870]">{children}</strong>,
+        ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-2">{children}</ul>,
+        ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-2">{children}</ol>,
+        li: ({ children }) => <li className="text-[#374151]">{children}</li>,
+        code: ({ inline, children }: any) =>
+          inline ? (
+            <code className="px-1.5 py-0.5 rounded text-xs font-mono bg-[#F0F4FF] text-[#0F2870]">
+              {children}
+            </code>
+          ) : (
+            <pre className="my-2 p-3 rounded-xl bg-[#0F1629] text-[#94A3B8] text-xs font-mono overflow-x-auto leading-relaxed">
+              <code>{children}</code>
+            </pre>
+          ),
+        blockquote: ({ children }) => (
+          <blockquote className="border-l-2 border-[#D4009A] pl-3 italic text-[#6B7280] mb-2">
             {children}
-          </code>
+          </blockquote>
         ),
         a: ({ href, children }) => (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 opacity-80 hover:opacity-100">
+          <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#D4009A] underline underline-offset-2 hover:opacity-80">
             {children}
           </a>
         ),
@@ -159,44 +188,45 @@ function MdContent({ content, light = false }: { content: string; light?: boolea
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function AgentBuilderView() {
-  const [conversations, setConversations] = useState<Conversation[]>(INITIAL_CONVERSATIONS)
-  const [activeId, setActiveId] = useState<string>(INITIAL_CONVERSATIONS[0].id)
+  const [conversations, setConversations] = useState<Conversation[]>(INITIAL_CONVS)
+  const [activeId, setActiveId] = useState<string>("c1")
   const [input, setInput] = useState("")
   const [isThinking, setIsThinking] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editTitle, setEditTitle] = useState("")
+  const [search, setSearch] = useState("")
+  const [menuOpen, setMenuOpen] = useState<string | null>(null)
+  const [renaming, setRenaming] = useState<string | null>(null)
+  const [renameVal, setRenameVal] = useState("")
+  const [responseIdx, setResponseIdx] = useState(0)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const activeConv = conversations.find((c) => c.id === activeId)!
 
-  const filteredConvs = conversations.filter((c) =>
-    c.title.toLowerCase().includes(searchQuery.toLowerCase())
+  const filtered = conversations.filter((c) =>
+    c.title.toLowerCase().includes(search.toLowerCase())
   )
 
-  // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [activeConv?.messages.length, isThinking])
+  }, [activeConv?.messages, isThinking])
 
   // Auto-resize textarea
   useEffect(() => {
-    const el = textareaRef.current
-    if (!el) return
-    el.style.height = "auto"
-    el.style.height = Math.min(el.scrollHeight, 180) + "px"
+    const ta = textareaRef.current
+    if (!ta) return
+    ta.style.height = "auto"
+    ta.style.height = Math.min(ta.scrollHeight, 180) + "px"
   }, [input])
 
-  const handleNewChat = () => {
-    const id = formatId()
+  const handleNewConv = () => {
+    const id = `c-${Date.now()}`
     const newConv: Conversation = {
       id,
       title: "Nueva conversación",
       updatedAt: "Ahora",
-      messages: [{ ...WELCOME_MESSAGE, id: formatId() }],
+      messages: [{ ...WELCOME, id: `w-${id}` }],
     }
     setConversations((prev) => [newConv, ...prev])
     setActiveId(id)
@@ -207,37 +237,36 @@ export default function AgentBuilderView() {
     const text = input.trim()
     if (!text || isThinking) return
 
-    const userMsg: Message = { id: formatId(), role: "user", content: text }
-    setInput("")
-    setIsThinking(true)
-
+    const userMsg: Message = { id: `u-${Date.now()}`, role: "user", content: text }
     setConversations((prev) =>
       prev.map((c) =>
         c.id !== activeId
           ? c
           : {
               ...c,
-              title: c.messages.length === 1 ? text.slice(0, 48) : c.title,
+              title: c.messages.length <= 1 ? text.slice(0, 48) : c.title,
               updatedAt: "Ahora",
               messages: [...c.messages, userMsg],
             }
       )
     )
+    setInput("")
+    setIsThinking(true)
 
-    // Simulate streaming delay
+    // Simulate streaming response
     setTimeout(() => {
-      const reply: Message = {
-        id: formatId(),
-        role: "assistant",
-        content: buildAssistantReply(text),
-      }
+      const reply = KRNL_RESPONSES[responseIdx % Object.keys(KRNL_RESPONSES).length]
+      setResponseIdx((i) => i + 1)
+      const assistantMsg: Message = { id: `a-${Date.now()}`, role: "assistant", content: reply }
       setConversations((prev) =>
         prev.map((c) =>
-          c.id !== activeId ? c : { ...c, messages: [...c.messages, reply] }
+          c.id !== activeId
+            ? c
+            : { ...c, messages: [...c.messages, assistantMsg] }
         )
       )
       setIsThinking(false)
-    }, 1400 + Math.random() * 600)
+    }, 1400)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -248,363 +277,270 @@ export default function AgentBuilderView() {
   }
 
   const handleDelete = (id: string) => {
-    setConversations((prev) => prev.filter((c) => c.id !== id))
-    if (activeId === id && conversations.length > 1) {
-      setActiveId(conversations.find((c) => c.id !== id)!.id)
-    }
-    setMenuOpenId(null)
+    const next = conversations.filter((c) => c.id !== id)
+    setConversations(next)
+    if (activeId === id) setActiveId(next[0]?.id ?? "")
+    setMenuOpen(null)
   }
 
-  const handleRenameStart = (conv: Conversation) => {
-    setEditingId(conv.id)
-    setEditTitle(conv.title)
-    setMenuOpenId(null)
-  }
-
-  const handleRenameConfirm = () => {
-    if (!editTitle.trim()) return
+  const handleRename = (id: string) => {
     setConversations((prev) =>
-      prev.map((c) => (c.id === editingId ? { ...c, title: editTitle.trim() } : c))
+      prev.map((c) => (c.id === id ? { ...c, title: renameVal.trim() || c.title } : c))
     )
-    setEditingId(null)
+    setRenaming(null)
   }
-
-  const handleSuggestedPrompt = (label: string) => {
-    setInput(`Quiero crear un agente de ${label.toLowerCase()}`)
-    textareaRef.current?.focus()
-  }
-
-  const isEmpty = activeConv.messages.length === 1 && activeConv.messages[0].role === "assistant"
 
   return (
-    <div className="flex h-screen w-full overflow-hidden" style={{ background: "#0B1120" }}>
+    <div className="flex h-full overflow-hidden" style={{ background: "#F8F9FC" }}>
 
-      {/* ── Left Sidebar ────────────────────────────────────────────────────── */}
+      {/* ── Left sidebar ────────────────────────────────────────────────────── */}
       <aside
         className={cn(
-          "flex flex-col h-full shrink-0 transition-all duration-300 overflow-hidden border-r",
-          sidebarOpen ? "w-64" : "w-0"
+          "flex flex-col shrink-0 transition-all duration-200 border-r border-[rgba(145,158,171,0.16)]",
+          sidebarOpen ? "w-64" : "w-0 overflow-hidden"
         )}
-        style={{ borderColor: "rgba(255,255,255,0.06)", background: "#0F1629" }}
+        style={{ background: "#0F1629" }}
       >
-        {/* Logo + collapse */}
-        <div className="flex items-center justify-between px-4 pt-5 pb-4 shrink-0">
-          <Link href="/" className="flex items-center gap-2 group">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 pt-5 pb-3">
+          <div className="flex items-center gap-2.5">
             <div
-              className="h-7 w-7 rounded-lg flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, #D4009A, #5E24D5)" }}
+              className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0"
+              style={{ background: "linear-gradient(135deg,#D4009A,#5E24D5)" }}
             >
-              <Cpu className="h-4 w-4 text-white" />
+              <Sparkles className="h-3.5 w-3.5 text-white" />
             </div>
-            <div>
-              <p className="text-white font-bold text-sm leading-none">KRNL</p>
-              <p className="text-[10px] leading-none mt-0.5" style={{ color: "#5E24D5" }}>Agent Builder</p>
-            </div>
-          </Link>
+            <span className="text-sm font-semibold text-white">KRNL Agent</span>
+          </div>
           <button
-            onClick={() => setSidebarOpen(false)}
-            className="p-1.5 rounded-lg transition-colors"
-            style={{ color: "rgba(255,255,255,0.35)" }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.7)")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.35)")}
+            onClick={handleNewConv}
+            className="h-7 w-7 rounded-lg flex items-center justify-center transition-colors hover:bg-white/10"
+            title="Nueva conversación"
           >
-            <PanelLeftClose className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* New chat button */}
-        <div className="px-3 mb-3 shrink-0">
-          <button
-            onClick={handleNewChat}
-            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
-            style={{ background: "rgba(212,0,154,0.15)", color: "#F472B6" }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "rgba(212,0,154,0.25)"
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "rgba(212,0,154,0.15)"
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            Nueva conversación
+            <Plus className="h-4 w-4 text-white/60" />
           </button>
         </div>
 
         {/* Search */}
-        <div className="px-3 mb-3 shrink-0">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: "rgba(255,255,255,0.05)" }}>
+        <div className="px-3 mb-3">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: "rgba(255,255,255,0.06)" }}>
             <Search className="h-3.5 w-3.5 shrink-0" style={{ color: "rgba(255,255,255,0.3)" }} />
             <input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar conversaciones..."
-              className="bg-transparent text-xs outline-none w-full placeholder:opacity-40"
-              style={{ color: "rgba(255,255,255,0.75)" }}
+              className="flex-1 bg-transparent text-xs outline-none placeholder:text-white/30 text-white/80"
             />
           </div>
         </div>
 
-        {/* Conversations list */}
+        {/* Conversation list */}
         <div className="flex-1 overflow-y-auto px-2 space-y-0.5 pb-4">
-          {filteredConvs.length === 0 && (
-            <p className="text-center text-xs py-6" style={{ color: "rgba(255,255,255,0.25)" }}>
-              Sin resultados
-            </p>
+          {filtered.length === 0 && (
+            <p className="text-xs text-white/30 text-center mt-6">Sin resultados</p>
           )}
-          {filteredConvs.map((conv) => {
-            const isActive = conv.id === activeId
-            return (
-              <div key={conv.id} className="relative group">
-                {editingId === conv.id ? (
-                  <div className="px-2 py-1">
-                    <input
-                      autoFocus
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      onBlur={handleRenameConfirm}
-                      onKeyDown={(e) => e.key === "Enter" && handleRenameConfirm()}
-                      className="w-full text-xs rounded-lg px-2 py-1.5 outline-none"
-                      style={{ background: "rgba(255,255,255,0.1)", color: "#fff", border: "1px solid rgba(212,0,154,0.5)" }}
-                    />
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setActiveId(conv.id)}
-                    className="w-full text-left px-3 py-2.5 rounded-xl transition-all relative"
-                    style={
-                      isActive
-                        ? { background: "rgba(255,255,255,0.09)", color: "#fff" }
-                        : { color: "rgba(255,255,255,0.55)" }
-                    }
-                    onMouseEnter={(e) => {
-                      if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.05)"
+          {filtered.map((conv) => (
+            <div key={conv.id} className="relative group">
+              {renaming === conv.id ? (
+                <div className="flex items-center gap-1 px-2 py-1.5">
+                  <input
+                    autoFocus
+                    value={renameVal}
+                    onChange={(e) => setRenameVal(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleRename(conv.id)
+                      if (e.key === "Escape") setRenaming(null)
                     }}
-                    onMouseLeave={(e) => {
-                      if (!isActive) e.currentTarget.style.background = ""
-                    }}
-                  >
-                    <p className="text-xs font-medium truncate pr-6">{conv.title}</p>
-                    <p className="text-[10px] mt-0.5 opacity-40">{conv.updatedAt}</p>
-
-                    {/* Three-dot menu */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setMenuOpenId(menuOpenId === conv.id ? null : conv.id)
-                      }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
-                      style={{ color: "rgba(255,255,255,0.5)" }}
-                    >
-                      <MoreHorizontal className="h-3.5 w-3.5" />
-                    </button>
+                    className="flex-1 bg-white/10 text-white text-xs px-2 py-1 rounded-lg outline-none"
+                  />
+                  <button onClick={() => handleRename(conv.id)} className="text-green-400 hover:text-green-300">
+                    <Check className="h-3.5 w-3.5" />
                   </button>
-                )}
+                  <button onClick={() => setRenaming(null)} className="text-white/40 hover:text-white/60">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setActiveId(conv.id); setMenuOpen(null) }}
+                  className={cn(
+                    "w-full text-left px-3 py-2.5 rounded-xl transition-colors",
+                    activeId === conv.id
+                      ? "bg-white/12 text-white"
+                      : "text-white/50 hover:bg-white/6 hover:text-white/80"
+                  )}
+                  style={activeId === conv.id ? { background: "rgba(255,255,255,0.1)" } : {}}
+                >
+                  <p className="text-xs font-medium truncate">{conv.title}</p>
+                  <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>
+                    {conv.updatedAt}
+                  </p>
+                </button>
+              )}
 
-                {/* Dropdown menu */}
-                {menuOpenId === conv.id && (
-                  <div
-                    className="absolute right-2 top-10 z-50 rounded-xl shadow-2xl py-1 w-36"
-                    style={{ background: "#1B2845", border: "1px solid rgba(255,255,255,0.1)" }}
-                  >
-                    <button
-                      onClick={() => handleRenameStart(conv)}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors"
-                      style={{ color: "rgba(255,255,255,0.7)" }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.07)")}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                      Renombrar
-                    </button>
-                    <button
-                      onClick={() => handleDelete(conv.id)}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors"
-                      style={{ color: "#F87171" }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(248,113,113,0.1)")}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Eliminar
-                    </button>
-                  </div>
-                )}
+              {/* Context menu */}
+              <div className={cn("absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5", renaming === conv.id ? "hidden" : "opacity-0 group-hover:opacity-100 transition-opacity")}>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === conv.id ? null : conv.id) }}
+                  className="h-6 w-6 rounded-lg flex items-center justify-center hover:bg-white/10 text-white/40 hover:text-white/70"
+                >
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </button>
               </div>
-            )
-          })}
+
+              {menuOpen === conv.id && (
+                <div
+                  className="absolute right-1 top-8 z-50 rounded-xl border overflow-hidden shadow-xl py-1 min-w-[140px]"
+                  style={{ background: "#1E2D4A", borderColor: "rgba(255,255,255,0.08)" }}
+                >
+                  <button
+                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-white/70 hover:bg-white/8 hover:text-white transition-colors"
+                    onClick={() => { setRenameVal(conv.title); setRenaming(conv.id); setMenuOpen(null) }}
+                  >
+                    <Pencil className="h-3.5 w-3.5" /> Renombrar
+                  </button>
+                  <button
+                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-400 hover:bg-white/8 transition-colors"
+                    onClick={() => handleDelete(conv.id)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Eliminar
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
 
-        {/* Back to KRNL */}
-        <div className="px-3 py-3 shrink-0 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-          <Link
-            href="/agente/conocimiento"
-            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs transition-colors"
-            style={{ color: "rgba(255,255,255,0.4)" }}
-            onMouseEnter={(e) => {
-              const el = e.currentTarget as HTMLElement
-              el.style.color = "rgba(255,255,255,0.7)"
-              el.style.background = "rgba(255,255,255,0.05)"
-            }}
-            onMouseLeave={(e) => {
-              const el = e.currentTarget as HTMLElement
-              el.style.color = "rgba(255,255,255,0.4)"
-              el.style.background = ""
-            }}
+        {/* Footer */}
+        <div
+          className="px-4 py-3 border-t flex items-center gap-2.5"
+          style={{ borderColor: "rgba(255,255,255,0.06)" }}
+        >
+          <div
+            className="h-7 w-7 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold text-white"
+            style={{ background: "#D4009A" }}
           >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Volver a KRNL
-          </Link>
+            UA
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-white/80 truncate">Usuario Admin</p>
+            <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.3)" }}>Mi Organización</p>
+          </div>
         </div>
       </aside>
 
       {/* ── Main chat area ───────────────────────────────────────────────────── */}
-      <main className="flex flex-col flex-1 h-full overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
         {/* Topbar */}
-        <header
-          className="flex items-center gap-3 px-5 py-3.5 shrink-0 border-b"
-          style={{ background: "#0B1120", borderColor: "rgba(255,255,255,0.06)" }}
+        <div
+          className="flex items-center gap-3 px-5 py-3.5 border-b shrink-0"
+          style={{ background: "#FFFFFF", borderColor: "rgba(145,158,171,0.16)" }}
         >
-          {!sidebarOpen && (
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="p-1.5 rounded-lg transition-colors mr-1"
-              style={{ color: "rgba(255,255,255,0.4)" }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.8)")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.4)")}
-            >
-              <PanelLeftOpen className="h-4 w-4" />
-            </button>
-          )}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-1.5 rounded-lg transition-colors hover:bg-[#F4F6F8] text-[#637381]"
+          >
+            {sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
+          </button>
 
-          {/* KRNL Agent identity */}
-          <div className="flex items-center gap-2.5">
+          <div className="h-4 w-px bg-[#E5E7EB]" />
+
+          {/* KRNL Agent badge */}
+          <div className="flex items-center gap-2">
             <div
-              className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0"
-              style={{ background: "linear-gradient(135deg, #D4009A 0%, #5E24D5 100%)" }}
+              className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0"
+              style={{ background: "linear-gradient(135deg,#D4009A,#5E24D5)" }}
             >
-              <Sparkles className="h-4 w-4 text-white" />
+              <Sparkles className="h-3.5 w-3.5 text-white" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-white leading-none">KRNL Agent</p>
-              <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
-                Asistente de construccion de agentes CORE
-              </p>
+              <p className="text-sm font-semibold" style={{ color: "#1C2434" }}>KRNL Agent</p>
+              <p className="text-[11px]" style={{ color: "#637381" }}>Agent Builder</p>
             </div>
           </div>
 
-          {/* Status dot */}
-          <div className="ml-auto flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>En linea</span>
+          <div className="ml-auto flex items-center gap-2">
+            <span
+              className="text-[11px] font-medium px-2.5 py-1 rounded-full"
+              style={{ background: "#F0FFF4", color: "#16A34A" }}
+            >
+              En línea
+            </span>
           </div>
-        </header>
+        </div>
 
         {/* Messages */}
-        <div
-          className="flex-1 overflow-y-auto px-4 md:px-8 lg:px-16 xl:px-32 py-8 space-y-6"
-          style={{ background: "#0D1527" }}
-          onClick={() => setMenuOpenId(null)}
-        >
-          {/* Empty state with suggestions */}
-          {isEmpty && (
-            <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
-              <div
-                className="h-16 w-16 rounded-2xl flex items-center justify-center mb-5"
-                style={{ background: "linear-gradient(135deg, rgba(212,0,154,0.2), rgba(94,36,213,0.2))", border: "1px solid rgba(212,0,154,0.2)" }}
-              >
-                <Bot className="h-8 w-8" style={{ color: "#D4009A" }} />
-              </div>
-              <h2 className="text-2xl font-bold text-white mb-2 text-balance">
-                Construye tu agente CORE
-              </h2>
-              <p className="text-sm mb-8 max-w-md text-balance" style={{ color: "rgba(255,255,255,0.45)" }}>
-                Descríbeme el agente que necesitas y te ayudaré a configurarlo paso a paso.
-              </p>
-
-              {/* Suggested prompts */}
-              <div className="grid grid-cols-2 gap-3 w-full max-w-lg">
-                {SUGGESTED_PROMPTS.map((p) => (
-                  <button
-                    key={p.label}
-                    onClick={() => handleSuggestedPrompt(p.label)}
-                    className="text-left p-4 rounded-xl border transition-all"
-                    style={{ background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.7)" }}
-                    onMouseEnter={(e) => {
-                      const el = e.currentTarget as HTMLElement
-                      el.style.background = "rgba(212,0,154,0.07)"
-                      el.style.borderColor = "rgba(212,0,154,0.25)"
-                    }}
-                    onMouseLeave={(e) => {
-                      const el = e.currentTarget as HTMLElement
-                      el.style.background = "rgba(255,255,255,0.03)"
-                      el.style.borderColor = "rgba(255,255,255,0.08)"
-                    }}
-                  >
-                    <p className="text-sm font-semibold text-white mb-1">{p.label}</p>
-                    <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{p.description}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
+        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6" onClick={() => setMenuOpen(null)}>
+          {activeConv?.messages.length === 0 && !isThinking && (
+            <EmptyState onSuggest={(s) => { setInput(s); textareaRef.current?.focus() }} />
           )}
 
-          {/* Message list */}
-          {activeConv.messages.map((msg) => {
-            const isAssistant = msg.role === "assistant"
-            return (
-              <div
-                key={msg.id}
-                className={cn("flex gap-3 max-w-3xl", isAssistant ? "mr-auto" : "ml-auto flex-row-reverse")}
-              >
-                {/* Avatar */}
-                {isAssistant && (
-                  <div
-                    className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
-                    style={{ background: "linear-gradient(135deg, #D4009A, #5E24D5)" }}
-                  >
-                    <Sparkles className="h-4 w-4 text-white" />
-                  </div>
-                )}
-
-                {/* Bubble */}
+          {activeConv?.messages.map((msg) => (
+            <div
+              key={msg.id}
+              className={cn("flex gap-3", msg.role === "user" ? "flex-row-reverse" : "flex-row")}
+            >
+              {/* Avatar */}
+              {msg.role === "assistant" ? (
                 <div
-                  className={cn("rounded-2xl px-4 py-3 text-sm", isAssistant ? "rounded-tl-sm" : "rounded-tr-sm")}
-                  style={
-                    isAssistant
-                      ? { background: "#1A2640", color: "rgba(255,255,255,0.88)" }
-                      : { background: "linear-gradient(135deg, #D4009A, #5E24D5)", color: "#fff" }
-                  }
+                  className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
+                  style={{ background: "linear-gradient(135deg,#D4009A,#5E24D5)" }}
                 >
-                  <MdContent content={msg.content} light={!isAssistant} />
+                  <Sparkles className="h-4 w-4 text-white" />
                 </div>
+              ) : (
+                <div
+                  className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold text-white"
+                  style={{ background: "#0F2870" }}
+                >
+                  UA
+                </div>
+              )}
+
+              {/* Bubble */}
+              <div
+                className={cn("max-w-[72%] rounded-2xl px-4 py-3 text-sm", msg.role === "user" ? "rounded-tr-sm" : "rounded-tl-sm")}
+                style={
+                  msg.role === "user"
+                    ? { background: "#0F2870", color: "#FFFFFF" }
+                    : { background: "#FFFFFF", color: "#1C2434", border: "1px solid rgba(145,158,171,0.16)" }
+                }
+              >
+                {msg.role === "user" ? (
+                  <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                ) : (
+                  <MsgMarkdown content={msg.content} />
+                )}
               </div>
-            )
-          })}
+            </div>
+          ))}
 
           {/* Thinking indicator */}
           {isThinking && (
-            <div className="flex gap-3 max-w-3xl mr-auto">
+            <div className="flex gap-3">
               <div
                 className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: "linear-gradient(135deg, #D4009A, #5E24D5)" }}
+                style={{ background: "linear-gradient(135deg,#D4009A,#5E24D5)" }}
               >
                 <Sparkles className="h-4 w-4 text-white" />
               </div>
               <div
-                className="rounded-2xl rounded-tl-sm px-4 py-3.5 flex items-center gap-1.5"
-                style={{ background: "#1A2640" }}
+                className="rounded-2xl rounded-tl-sm px-4 py-3"
+                style={{ background: "#FFFFFF", border: "1px solid rgba(145,158,171,0.16)" }}
               >
-                {[0, 1, 2].map((i) => (
-                  <span
-                    key={i}
-                    className="h-2 w-2 rounded-full"
-                    style={{
-                      background: "#D4009A",
-                      animation: `pulse 1.4s ease-in-out ${i * 0.2}s infinite`,
-                      opacity: 0.8,
-                    }}
-                  />
-                ))}
+                <div className="flex items-center gap-1.5">
+                  {[0, 1, 2].map((i) => (
+                    <span
+                      key={i}
+                      className="h-2 w-2 rounded-full"
+                      style={{
+                        background: "#D4009A",
+                        animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite`,
+                      }}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           )}
@@ -612,47 +548,89 @@ export default function AgentBuilderView() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input area */}
+        {/* Input */}
         <div
-          className="px-4 md:px-8 lg:px-16 xl:px-32 py-4 shrink-0"
-          style={{ background: "#0D1527", borderTop: "1px solid rgba(255,255,255,0.06)" }}
+          className="px-6 py-4 border-t shrink-0"
+          style={{ background: "#FFFFFF", borderColor: "rgba(145,158,171,0.16)" }}
         >
           <div
-            className="flex items-end gap-3 rounded-2xl px-4 py-3"
-            style={{ background: "#1A2640", border: "1px solid rgba(255,255,255,0.08)" }}
+            className="flex items-end gap-3 rounded-2xl border px-4 py-3 transition-colors focus-within:border-[#D4009A]"
+            style={{ borderColor: "rgba(145,158,171,0.24)", background: "#F8F9FC" }}
           >
             <textarea
               ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Describe el agente que quieres construir..."
+              placeholder="Escribe tu mensaje... (Enter para enviar, Shift+Enter para nueva línea)"
               rows={1}
-              className="flex-1 bg-transparent text-sm resize-none outline-none leading-relaxed py-0.5"
-              style={{
-                color: "rgba(255,255,255,0.85)",
-                maxHeight: "180px",
-                scrollbarWidth: "none",
-              }}
+              className="flex-1 bg-transparent text-sm outline-none resize-none text-[#1C2434] placeholder:text-[#9AA1B4] leading-relaxed"
+              style={{ maxHeight: 180 }}
             />
             <button
               onClick={handleSend}
               disabled={!input.trim() || isThinking}
-              className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0 transition-all"
-              style={
-                input.trim() && !isThinking
-                  ? { background: "linear-gradient(135deg, #D4009A, #5E24D5)", color: "#fff" }
-                  : { background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.25)" }
-              }
+              className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: input.trim() && !isThinking ? "#D4009A" : "#E5E7EB" }}
             >
-              <Send className="h-4 w-4" />
+              <Send className="h-3.5 w-3.5" style={{ color: input.trim() && !isThinking ? "#FFFFFF" : "#9CA3AF" }} />
             </button>
           </div>
-          <p className="text-center text-[10px] mt-2" style={{ color: "rgba(255,255,255,0.2)" }}>
-            Presiona Enter para enviar · Shift+Enter para nueva linea
+          <p className="text-center text-[11px] mt-2" style={{ color: "#9AA1B4" }}>
+            KRNL Agent puede cometer errores. Verifica información importante antes de publicar tu agente.
           </p>
         </div>
-      </main>
+      </div>
+
+      <style jsx>{`
+        @keyframes bounce {
+          0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+          40% { transform: translateY(-6px); opacity: 1; }
+        }
+      `}</style>
+    </div>
+  )
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+
+function EmptyState({ onSuggest }: { onSuggest: (s: string) => void }) {
+  const suggestions = [
+    "Crear un agente de atención al cliente",
+    "Ayúdame a configurar un agente de ventas",
+    "Quiero un bot para responder preguntas de RRHH",
+    "Construir un agente que busque en mi CRM",
+  ]
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+      <div
+        className="h-14 w-14 rounded-2xl flex items-center justify-center mb-4"
+        style={{ background: "linear-gradient(135deg,#D4009A22,#5E24D522)", border: "1px solid #D4009A33" }}
+      >
+        <Sparkles className="h-7 w-7" style={{ color: "#D4009A" }} />
+      </div>
+      <h2 className="text-xl font-bold mb-1.5" style={{ color: "#1C2434" }}>
+        ¿Qué agente quieres construir hoy?
+      </h2>
+      <p className="text-sm mb-8 max-w-sm" style={{ color: "#637381" }}>
+        Cuéntame tu caso de uso y te ayudaré a configurar tu agente CORE paso a paso.
+      </p>
+      <div className="grid grid-cols-2 gap-3 w-full max-w-lg">
+        {suggestions.map((s) => (
+          <button
+            key={s}
+            onClick={() => onSuggest(s)}
+            className="text-left px-4 py-3 rounded-xl border text-sm transition-all hover:border-[#D4009A] hover:bg-[#FFF0FA]"
+            style={{
+              borderColor: "rgba(145,158,171,0.24)",
+              background: "#FFFFFF",
+              color: "#374151",
+            }}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
