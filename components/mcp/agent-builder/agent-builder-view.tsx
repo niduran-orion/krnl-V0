@@ -269,159 +269,218 @@ export default function AgentBuilderView() {
     }
   }
 
-  const isEmpty = messages.length === 1 && messages[0].role === "assistant"
+  // True when no user message has been sent yet
+  const isEmpty = messages.every((m) => m.role === "assistant") && !isThinking
 
-  return (
-    <div className="flex flex-col h-full" style={{ background: "#F8F9FC" }}>
-
-      {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div
-        className="flex items-center gap-3 px-6 py-3.5 border-b shrink-0"
-        style={{ background: "#FFFFFF", borderColor: "rgba(145,158,171,0.16)" }}
+  // ── Shared input box ───────────────────────────────────────────────────────
+  const InputBox = (
+    <div
+      className="flex items-end gap-3 rounded-2xl border px-4 py-3 transition-all focus-within:shadow-md w-full"
+      style={{
+        background: "#FFFFFF",
+        borderColor: "rgba(145,158,171,0.24)",
+        boxShadow: isEmpty ? "0 2px 12px rgba(0,0,0,0.06)" : undefined,
+      }}
+    >
+      <textarea
+        ref={textareaRef}
+        rows={1}
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="Describe el agente que quieres construir..."
+        className="flex-1 bg-transparent text-sm outline-none resize-none leading-relaxed placeholder:text-[#9AA3B0]"
+        style={{ color: "#1C2434", minHeight: "24px", maxHeight: "180px" }}
+        disabled={isThinking}
+      />
+      <button
+        onClick={() => handleSend()}
+        disabled={!input.trim() || isThinking}
+        className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0 transition-all"
+        style={
+          input.trim() && !isThinking
+            ? { background: "#D4009A", color: "#FFFFFF" }
+            : { background: "#E5E7EB", color: "#9CA3AF" }
+        }
       >
-        <div
-          className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: "linear-gradient(135deg,#D4009A,#5E24D5)" }}
-        >
-          <Sparkles className="h-4 w-4 text-white" />
-        </div>
-        <div>
-          <p className="text-sm font-semibold" style={{ color: "#1C2434" }}>
-            KRNL Agent
-          </p>
-          <p className="text-[11px]" style={{ color: "#637381" }}>
-            Agent Builder — construye tu agente CORE
-          </p>
-        </div>
+        <Send className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  )
 
-        <div className="ml-auto flex items-center gap-2">
-
-          {/* Provider selector */}
-          <div ref={providerRef} className="relative">
-            <button
-              onClick={() => { setProviderOpen((o) => !o); setModelOpen(false) }}
-              className="flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg border transition-all"
-              style={{
-                background: "#FFFFFF",
-                borderColor: "rgba(145,158,171,0.24)",
-                color: "#1C2434",
-              }}
-            >
-              <span
-                className="h-4.5 w-4.5 rounded text-[9px] font-bold text-white px-1 py-0.5 shrink-0"
-                style={{ background: selectedProvider.color, fontSize: "9px" }}
-              >
-                {selectedProvider.logo}
-              </span>
-              {selectedProvider.name}
-              <ChevronDown className="h-3 w-3 opacity-50" />
-            </button>
-            {providerOpen && (
-              <div
-                className="absolute right-0 top-full mt-1.5 w-44 rounded-xl border shadow-lg py-1 z-50"
-                style={{ background: "#FFFFFF", borderColor: "rgba(145,158,171,0.16)" }}
-              >
-                {PROVIDERS.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => handleSelectProvider(p)}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors hover:bg-slate-50"
-                    style={{ color: "#1C2434" }}
-                  >
-                    <span
-                      className="h-5 w-5 rounded text-white flex items-center justify-center font-bold shrink-0"
-                      style={{ background: p.color, fontSize: "9px" }}
-                    >
-                      {p.logo}
-                    </span>
-                    <span className="flex-1 text-left font-medium">{p.name}</span>
-                    {selectedProvider.id === p.id && (
-                      <Check className="h-3 w-3" style={{ color: "#D4009A" }} />
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Model selector */}
-          <div ref={modelRef} className="relative">
-            <button
-              onClick={() => { setModelOpen((o) => !o); setProviderOpen(false) }}
-              className="flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg border transition-all"
-              style={{
-                background: "#FFFFFF",
-                borderColor: "rgba(145,158,171,0.24)",
-                color: "#1C2434",
-              }}
-            >
-              <span className="max-w-[120px] truncate">{selectedModel.name}</span>
-              <span
-                className="text-[10px] px-1.5 py-0.5 rounded-full font-mono"
-                style={{ background: "#EEF2FF", color: "#5E24D5" }}
-              >
-                {selectedModel.context}
-              </span>
-              <ChevronDown className="h-3 w-3 opacity-50" />
-            </button>
-            {modelOpen && (
-              <div
-                className="absolute right-0 top-full mt-1.5 w-52 rounded-xl border shadow-lg py-1 z-50"
-                style={{ background: "#FFFFFF", borderColor: "rgba(145,158,171,0.16)" }}
-              >
-                {selectedProvider.models.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => { setSelectedModel(m); setModelOpen(false) }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors hover:bg-slate-50"
-                    style={{ color: "#1C2434" }}
-                  >
-                    <span className="flex-1 text-left font-medium">{m.name}</span>
-                    <span
-                      className="text-[10px] px-1.5 py-0.5 rounded-full font-mono shrink-0"
-                      style={{ background: "#F1F5F9", color: "#637381" }}
-                    >
-                      {m.context}
-                    </span>
-                    {selectedModel.id === m.id && (
-                      <Check className="h-3 w-3 shrink-0" style={{ color: "#D4009A" }} />
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="w-px h-5 mx-1" style={{ background: "rgba(145,158,171,0.2)" }} />
-
-          <span
-            className="text-[11px] font-medium px-2.5 py-1 rounded-full"
-            style={{ background: "#F0FFF4", color: "#16A34A" }}
-          >
-            En línea
-          </span>
-          <button
-            onClick={handleReset}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors"
-            style={{ background: "#F4F6F8", color: "#637381" }}
-            title="Nueva sesión"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Nueva sesión
-          </button>
-        </div>
+  // ── Shared header ──────────────────────────────────────────────────────────
+  const Header = (
+    <div
+      className="flex items-center gap-3 px-6 py-3.5 border-b shrink-0"
+      style={{ background: "#FFFFFF", borderColor: "rgba(145,158,171,0.16)" }}
+    >
+      <div
+        className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0"
+        style={{ background: "linear-gradient(135deg,#D4009A,#5E24D5)" }}
+      >
+        <Sparkles className="h-4 w-4 text-white" />
+      </div>
+      <div>
+        <p className="text-sm font-semibold" style={{ color: "#1C2434" }}>
+          KRNL Agent
+        </p>
+        <p className="text-[11px]" style={{ color: "#637381" }}>
+          Agent Builder — construye tu agente CORE
+        </p>
       </div>
 
-      {/* ── Messages ────────────────────────────────────────────────────────── */}
+      <div className="ml-auto flex items-center gap-2">
+        {/* Provider selector */}
+        <div ref={providerRef} className="relative">
+          <button
+            onClick={() => { setProviderOpen((o) => !o); setModelOpen(false) }}
+            className="flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg border transition-all"
+            style={{ background: "#FFFFFF", borderColor: "rgba(145,158,171,0.24)", color: "#1C2434" }}
+          >
+            <span
+              className="rounded text-white px-1 py-0.5 shrink-0 font-bold"
+              style={{ background: selectedProvider.color, fontSize: "9px" }}
+            >
+              {selectedProvider.logo}
+            </span>
+            {selectedProvider.name}
+            <ChevronDown className="h-3 w-3 opacity-50" />
+          </button>
+          {providerOpen && (
+            <div
+              className="absolute right-0 top-full mt-1.5 w-44 rounded-xl border shadow-lg py-1 z-50"
+              style={{ background: "#FFFFFF", borderColor: "rgba(145,158,171,0.16)" }}
+            >
+              {PROVIDERS.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => handleSelectProvider(p)}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors hover:bg-slate-50"
+                  style={{ color: "#1C2434" }}
+                >
+                  <span
+                    className="h-5 w-5 rounded text-white flex items-center justify-center font-bold shrink-0"
+                    style={{ background: p.color, fontSize: "9px" }}
+                  >
+                    {p.logo}
+                  </span>
+                  <span className="flex-1 text-left font-medium">{p.name}</span>
+                  {selectedProvider.id === p.id && <Check className="h-3 w-3" style={{ color: "#D4009A" }} />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Model selector */}
+        <div ref={modelRef} className="relative">
+          <button
+            onClick={() => { setModelOpen((o) => !o); setProviderOpen(false) }}
+            className="flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg border transition-all"
+            style={{ background: "#FFFFFF", borderColor: "rgba(145,158,171,0.24)", color: "#1C2434" }}
+          >
+            <span className="max-w-[120px] truncate">{selectedModel.name}</span>
+            <span
+              className="text-[10px] px-1.5 py-0.5 rounded-full font-mono"
+              style={{ background: "#EEF2FF", color: "#5E24D5" }}
+            >
+              {selectedModel.context}
+            </span>
+            <ChevronDown className="h-3 w-3 opacity-50" />
+          </button>
+          {modelOpen && (
+            <div
+              className="absolute right-0 top-full mt-1.5 w-52 rounded-xl border shadow-lg py-1 z-50"
+              style={{ background: "#FFFFFF", borderColor: "rgba(145,158,171,0.16)" }}
+            >
+              {selectedProvider.models.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => { setSelectedModel(m); setModelOpen(false) }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors hover:bg-slate-50"
+                  style={{ color: "#1C2434" }}
+                >
+                  <span className="flex-1 text-left font-medium">{m.name}</span>
+                  <span
+                    className="text-[10px] px-1.5 py-0.5 rounded-full font-mono shrink-0"
+                    style={{ background: "#F1F5F9", color: "#637381" }}
+                  >
+                    {m.context}
+                  </span>
+                  {selectedModel.id === m.id && <Check className="h-3 w-3 shrink-0" style={{ color: "#D4009A" }} />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="w-px h-5 mx-1" style={{ background: "rgba(145,158,171,0.2)" }} />
+
+        <span
+          className="text-[11px] font-medium px-2.5 py-1 rounded-full"
+          style={{ background: "#F0FFF4", color: "#16A34A" }}
+        >
+          En línea
+        </span>
+        <button
+          onClick={handleReset}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors"
+          style={{ background: "#F4F6F8", color: "#637381" }}
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+          Nueva sesión
+        </button>
+      </div>
+    </div>
+  )
+
+  // ── EMPTY STATE — input centered ───────────────────────────────────────────
+  if (isEmpty) {
+    return (
+      <div className="flex flex-col h-full" style={{ background: "#F8F9FC" }}>
+        {Header}
+        <div className="flex-1 flex flex-col items-center justify-center px-4">
+          {/* Welcome message */}
+          <div className="flex flex-col items-center mb-8 text-center">
+            <div
+              className="h-14 w-14 rounded-2xl flex items-center justify-center mb-4"
+              style={{ background: "linear-gradient(135deg,#D4009A,#5E24D5)" }}
+            >
+              <Sparkles className="h-7 w-7 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold mb-1.5 text-balance" style={{ color: "#0F2870" }}>
+              Hola, soy KRNL Agent
+            </h1>
+            <p className="text-sm text-balance max-w-sm" style={{ color: "#637381" }}>
+              Tu asistente para construir agentes CORE. Descríbeme el agente que quieres crear y te guío paso a paso.
+            </p>
+          </div>
+
+          {/* Input centered */}
+          <div className="w-full max-w-2xl">
+            {InputBox}
+            <p className="text-[11px] text-center mt-2" style={{ color: "#9AA3B0" }}>
+              Presiona Enter para enviar · Shift+Enter para nueva línea
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── CHAT STATE — messages + input at bottom ────────────────────────────────
+  return (
+    <div className="flex flex-col h-full" style={{ background: "#F8F9FC" }}>
+      {Header}
+
+      {/* Messages */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
-
           {messages.map((msg) => (
             <div
               key={msg.id}
               className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
             >
-              {/* Avatar */}
               {msg.role === "assistant" ? (
                 <div
                   className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
@@ -437,8 +496,6 @@ export default function AgentBuilderView() {
                   UA
                 </div>
               )}
-
-              {/* Bubble */}
               <div
                 className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm ${
                   msg.role === "user" ? "rounded-tr-sm" : "rounded-tl-sm"
@@ -463,7 +520,7 @@ export default function AgentBuilderView() {
             </div>
           ))}
 
-          {/* Thinking indicator */}
+          {/* Thinking */}
           {isThinking && (
             <div className="flex gap-3">
               <div
@@ -495,46 +552,17 @@ export default function AgentBuilderView() {
               </div>
             </div>
           )}
-
           <div ref={messagesEndRef} />
         </div>
       </div>
 
-      {/* ── Input area ──────────────────────────────────────────────────────── */}
-      <div className="shrink-0 border-t px-4 py-4" style={{ background: "#FFFFFF", borderColor: "rgba(145,158,171,0.16)" }}>
+      {/* Input fixed at bottom */}
+      <div
+        className="shrink-0 border-t px-4 py-4"
+        style={{ background: "#FFFFFF", borderColor: "rgba(145,158,171,0.16)" }}
+      >
         <div className="max-w-3xl mx-auto">
-          <div
-            className="flex items-end gap-3 rounded-2xl border px-4 py-3 transition-all focus-within:shadow-sm"
-            style={{
-              background: "#F8F9FC",
-              borderColor: "rgba(145,158,171,0.24)",
-            }}
-            onFocus={() => {}}
-          >
-            <textarea
-              ref={textareaRef}
-              rows={1}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Describe el agente que quieres construir..."
-              className="flex-1 bg-transparent text-sm outline-none resize-none leading-relaxed placeholder:text-[#9AA3B0]"
-              style={{ color: "#1C2434", minHeight: "24px", maxHeight: "180px" }}
-              disabled={isThinking}
-            />
-            <button
-              onClick={() => handleSend()}
-              disabled={!input.trim() || isThinking}
-              className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0 transition-all"
-              style={
-                input.trim() && !isThinking
-                  ? { background: "#D4009A", color: "#FFFFFF" }
-                  : { background: "#E5E7EB", color: "#9CA3AF" }
-              }
-            >
-              <Send className="h-3.5 w-3.5" />
-            </button>
-          </div>
+          {InputBox}
           <p className="text-[11px] text-center mt-2" style={{ color: "#9AA3B0" }}>
             Presiona Enter para enviar · Shift+Enter para nueva línea
           </p>
