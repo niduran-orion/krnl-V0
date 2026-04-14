@@ -496,34 +496,6 @@ export default function AgentBuilderView() {
             </div>
           )}
 
-          {/* Suggestion chips — shown only on welcome state */}
-          {isEmpty && !isThinking && (
-            <div className="flex flex-wrap gap-2 mt-2">
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => handleSend(s)}
-                  className="text-xs px-3.5 py-2 rounded-full border transition-all hover:shadow-sm"
-                  style={{
-                    background: "#FFFFFF",
-                    borderColor: "rgba(145,158,171,0.24)",
-                    color: "#1C2434",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "#D4009A"
-                    e.currentTarget.style.color = "#D4009A"
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "rgba(145,158,171,0.24)"
-                    e.currentTarget.style.color = "#1C2434"
-                  }}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          )}
-
           <div ref={messagesEndRef} />
         </div>
       </div>
