@@ -3,7 +3,60 @@
 import { useState, useRef, useEffect } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { Send, Sparkles, RotateCcw } from "lucide-react"
+import { Send, Sparkles, RotateCcw, ChevronDown, Check } from "lucide-react"
+
+// ── Providers & Models ────────────────────────────────────────────────────────
+
+type Model = { id: string; name: string; context: string }
+type Provider = { id: string; name: string; logo: string; color: string; models: Model[] }
+
+const PROVIDERS: Provider[] = [
+  {
+    id: "openai",
+    name: "OpenAI",
+    logo: "OA",
+    color: "#10A37F",
+    models: [
+      { id: "gpt-4o", name: "GPT-4o", context: "128k" },
+      { id: "gpt-4o-mini", name: "GPT-4o mini", context: "128k" },
+      { id: "gpt-4-turbo", name: "GPT-4 Turbo", context: "128k" },
+      { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", context: "16k" },
+    ],
+  },
+  {
+    id: "anthropic",
+    name: "Anthropic",
+    logo: "AN",
+    color: "#C96442",
+    models: [
+      { id: "claude-3-5-sonnet", name: "Claude 3.5 Sonnet", context: "200k" },
+      { id: "claude-3-5-haiku", name: "Claude 3.5 Haiku", context: "200k" },
+      { id: "claude-3-opus", name: "Claude 3 Opus", context: "200k" },
+    ],
+  },
+  {
+    id: "mistral",
+    name: "Mistral",
+    logo: "MI",
+    color: "#F7931A",
+    models: [
+      { id: "mistral-large", name: "Mistral Large", context: "128k" },
+      { id: "mistral-medium", name: "Mistral Medium", context: "32k" },
+      { id: "mistral-small", name: "Mistral Small", context: "32k" },
+    ],
+  },
+  {
+    id: "groq",
+    name: "Groq",
+    logo: "GQ",
+    color: "#F55036",
+    models: [
+      { id: "llama-3.1-70b", name: "Llama 3.1 70B", context: "128k" },
+      { id: "llama-3.1-8b", name: "Llama 3.1 8B", context: "128k" },
+      { id: "mixtral-8x7b", name: "Mixtral 8x7B", context: "32k" },
+    ],
+  },
+]
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -147,6 +200,30 @@ export default function AgentBuilderView() {
   const [isThinking, setIsThinking] = useState(false)
   const [responseIdx, setResponseIdx] = useState(0)
 
+  const [selectedProvider, setSelectedProvider] = useState<Provider>(PROVIDERS[0])
+  const [selectedModel, setSelectedModel] = useState<Model>(PROVIDERS[0].models[0])
+  const [providerOpen, setProviderOpen] = useState(false)
+  const [modelOpen, setModelOpen] = useState(false)
+
+  const providerRef = useRef<HTMLDivElement>(null)
+  const modelRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (providerRef.current && !providerRef.current.contains(e.target as Node)) setProviderOpen(false)
+      if (modelRef.current && !modelRef.current.contains(e.target as Node)) setModelOpen(false)
+    }
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [])
+
+  const handleSelectProvider = (p: Provider) => {
+    setSelectedProvider(p)
+    setSelectedModel(p.models[0])
+    setProviderOpen(false)
+  }
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -217,7 +294,106 @@ export default function AgentBuilderView() {
           </p>
         </div>
 
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2">
+
+          {/* Provider selector */}
+          <div ref={providerRef} className="relative">
+            <button
+              onClick={() => { setProviderOpen((o) => !o); setModelOpen(false) }}
+              className="flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg border transition-all"
+              style={{
+                background: "#FFFFFF",
+                borderColor: "rgba(145,158,171,0.24)",
+                color: "#1C2434",
+              }}
+            >
+              <span
+                className="h-4.5 w-4.5 rounded text-[9px] font-bold text-white px-1 py-0.5 shrink-0"
+                style={{ background: selectedProvider.color, fontSize: "9px" }}
+              >
+                {selectedProvider.logo}
+              </span>
+              {selectedProvider.name}
+              <ChevronDown className="h-3 w-3 opacity-50" />
+            </button>
+            {providerOpen && (
+              <div
+                className="absolute right-0 top-full mt-1.5 w-44 rounded-xl border shadow-lg py-1 z-50"
+                style={{ background: "#FFFFFF", borderColor: "rgba(145,158,171,0.16)" }}
+              >
+                {PROVIDERS.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => handleSelectProvider(p)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors hover:bg-slate-50"
+                    style={{ color: "#1C2434" }}
+                  >
+                    <span
+                      className="h-5 w-5 rounded text-white flex items-center justify-center font-bold shrink-0"
+                      style={{ background: p.color, fontSize: "9px" }}
+                    >
+                      {p.logo}
+                    </span>
+                    <span className="flex-1 text-left font-medium">{p.name}</span>
+                    {selectedProvider.id === p.id && (
+                      <Check className="h-3 w-3" style={{ color: "#D4009A" }} />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Model selector */}
+          <div ref={modelRef} className="relative">
+            <button
+              onClick={() => { setModelOpen((o) => !o); setProviderOpen(false) }}
+              className="flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg border transition-all"
+              style={{
+                background: "#FFFFFF",
+                borderColor: "rgba(145,158,171,0.24)",
+                color: "#1C2434",
+              }}
+            >
+              <span className="max-w-[120px] truncate">{selectedModel.name}</span>
+              <span
+                className="text-[10px] px-1.5 py-0.5 rounded-full font-mono"
+                style={{ background: "#EEF2FF", color: "#5E24D5" }}
+              >
+                {selectedModel.context}
+              </span>
+              <ChevronDown className="h-3 w-3 opacity-50" />
+            </button>
+            {modelOpen && (
+              <div
+                className="absolute right-0 top-full mt-1.5 w-52 rounded-xl border shadow-lg py-1 z-50"
+                style={{ background: "#FFFFFF", borderColor: "rgba(145,158,171,0.16)" }}
+              >
+                {selectedProvider.models.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => { setSelectedModel(m); setModelOpen(false) }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors hover:bg-slate-50"
+                    style={{ color: "#1C2434" }}
+                  >
+                    <span className="flex-1 text-left font-medium">{m.name}</span>
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded-full font-mono shrink-0"
+                      style={{ background: "#F1F5F9", color: "#637381" }}
+                    >
+                      {m.context}
+                    </span>
+                    {selectedModel.id === m.id && (
+                      <Check className="h-3 w-3 shrink-0" style={{ color: "#D4009A" }} />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="w-px h-5 mx-1" style={{ background: "rgba(145,158,171,0.2)" }} />
+
           <span
             className="text-[11px] font-medium px-2.5 py-1 rounded-full"
             style={{ background: "#F0FFF4", color: "#16A34A" }}
