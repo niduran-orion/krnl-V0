@@ -97,7 +97,7 @@ const navSections = [
   {
     label: "AVANZADO",
     items: [
-      { icon: Code2,     label: "Agent Studio",         href: "#" },
+      { icon: Code2,     label: "Agent Builder",        href: "/agent-builder" },
       { icon: GitBranch, label: "Workflows",             href: "#" },
       { icon: Shield,    label: "Guardrails / Políticas",href: "/guardrails" },
       { icon: FileText,  label: "Logs / Observabilidad", href: "#" },
