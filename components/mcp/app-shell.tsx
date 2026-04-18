@@ -50,7 +50,7 @@ const navSections = [
     label: "GESTIÓN",
     items: [
       { icon: LayoutDashboard, label: "Dashboard",      href: "#" },
-      { icon: Bot,             label: "Agentes",        href: "/agente/conocimiento" },
+      { icon: Bot,             label: "Agentes",        href: "/agente/crear" },
       { icon: BookOpen,        label: "Colecciones",    href: "#" },
     ],
   },
