@@ -24,7 +24,6 @@ import {
   Eye,
   Sliders,
   Send,
-  Megaphone,
 } from "lucide-react"
 import Link from "next/link"
 
@@ -35,7 +34,6 @@ type NodeId =
   | "main-agent"
   | "knowledge-agent"
   | "tools-agent"
-  | "publish"
 
 type NodeStatus = "configured" | "active" | "pending" | "warning"
 
@@ -131,16 +129,6 @@ const NODES: GraphNode[] = [
     bgColor:     "#FFF0FA",
     borderColor: "#F9A8D4",
   },
-  {
-    id:          "publish",
-    label:       "Publicar",
-    sublabel:    "Sin canal configurado",
-    status:      "pending",
-    icon:        Megaphone,
-    color:       "#637381",
-    bgColor:     "#F7F8FA",
-    borderColor: "#E9ECEE",
-  },
 ]
 
 // ── Status helpers ─────────────────────────────────────────────────────────
@@ -169,17 +157,16 @@ interface GraphProps {
 }
 
 function AgentGraph({ selectedNode, onSelectNode, configuredNodes }: GraphProps) {
-  // Layout constants (viewBox 560x480)
+  // Layout constants — tall viewBox for prominence
   const W = 560
-  const H = 480
+  const H = 520
 
-  // Node positions
+  // Node positions — larger nodes, spread out for legibility
   const positions: Record<NodeId, { x: number; y: number; w: number; h: number }> = {
-    "guardrail":       { x: 160, y: 30,  w: 240, h: 64 },
-    "main-agent":      { x: 160, y: 150, w: 240, h: 64 },
-    "knowledge-agent": { x: 30,  y: 300, w: 220, h: 72 },
-    "tools-agent":     { x: 310, y: 300, w: 220, h: 72 },
-    "publish":         { x: 160, y: 408, w: 240, h: 56 },
+    "guardrail":       { x: 130, y: 30,  w: 300, h: 80 },
+    "main-agent":      { x: 130, y: 170, w: 300, h: 80 },
+    "knowledge-agent": { x: 10,  y: 340, w: 255, h: 88 },
+    "tools-agent":     { x: 295, y: 340, w: 255, h: 88 },
   }
 
   const nodeData: Record<NodeId, GraphNode> = Object.fromEntries(
@@ -198,8 +185,6 @@ function AgentGraph({ selectedNode, onSelectNode, configuredNodes }: GraphProps)
     ["guardrail",  "main-agent"],
     ["main-agent", "knowledge-agent"],
     ["main-agent", "tools-agent"],
-    ["knowledge-agent", "publish"],
-    ["tools-agent",     "publish"],
   ]
 
   const midX = (id: NodeId) => positions[id].x + positions[id].w / 2
@@ -210,7 +195,7 @@ function AgentGraph({ selectedNode, onSelectNode, configuredNodes }: GraphProps)
     <svg
       viewBox={`0 0 ${W} ${H}`}
       className="w-full h-full"
-      style={{ maxHeight: "100%", fontSize: "48px" }}
+      style={{ maxHeight: "100%" }}
     >
       {/* ── Edges ── */}
       <defs>
@@ -283,23 +268,23 @@ function AgentGraph({ selectedNode, onSelectNode, configuredNodes }: GraphProps)
 
             {/* Icon circle */}
             <rect
-              x={x + 14} y={y + h / 2 - 16}
-              width={32} height={32} rx={8}
+              x={x + 16} y={y + h / 2 - 22}
+              width={44} height={44} rx={10}
               fill={node.bgColor}
               stroke={node.borderColor}
-              strokeWidth="1"
+              strokeWidth="1.5"
             />
 
             {/* Status dot */}
             <circle
-              cx={x + w - 18}
+              cx={x + w - 20}
               cy={y + h / 2}
-              r={5}
+              r={6}
               fill={statusColors[node.status]}
             />
 
             {/* Labels — rendered as foreignObject for proper text */}
-            <foreignObject x={x + 54} y={y + 8} width={w - 80} height={h - 16}>
+            <foreignObject x={x + 70} y={y + 10} width={w - 100} height={h - 20}>
               <div
                 xmlns="http://www.w3.org/1999/xhtml"
                 style={{
@@ -310,8 +295,8 @@ function AgentGraph({ selectedNode, onSelectNode, configuredNodes }: GraphProps)
                 }}
               >
                 <p style={{
-                  fontSize: "12px",
-                  fontWeight: 600,
+                  fontSize: "15px",
+                  fontWeight: 700,
                   color: isSelected ? "#D4009A" : "#1C2434",
                   lineHeight: 1.3,
                   margin: 0,
@@ -319,11 +304,10 @@ function AgentGraph({ selectedNode, onSelectNode, configuredNodes }: GraphProps)
                   {node.label}
                 </p>
                 <p style={{
-                  fontSize: "10px",
+                  fontSize: "12px",
                   color: "#637381",
-                  marginTop: "2px",
                   margin: 0,
-                  marginTop: "2px",
+                  marginTop: "3px",
                 }}>
                   {node.sublabel}
                 </p>
@@ -332,8 +316,8 @@ function AgentGraph({ selectedNode, onSelectNode, configuredNodes }: GraphProps)
 
             {/* Icon — rendered via foreignObject */}
             <foreignObject
-              x={x + 14} y={y + h / 2 - 16}
-              width={32} height={32}
+              x={x + 16} y={y + h / 2 - 22}
+              width={44} height={44}
             >
               <div
                 xmlns="http://www.w3.org/1999/xhtml"
@@ -347,7 +331,7 @@ function AgentGraph({ selectedNode, onSelectNode, configuredNodes }: GraphProps)
               >
                 <svg
                   viewBox="0 0 24 24"
-                  width="14" height="14"
+                  width="20" height="20"
                   fill="none"
                   stroke={node.color}
                   strokeWidth="2"
@@ -370,9 +354,9 @@ function AgentGraph({ selectedNode, onSelectNode, configuredNodes }: GraphProps)
       {/* ── Tap hint ── */}
       {!selectedNode && (
         <text
-          x={W / 2} y={H - 8}
+          x={W / 2} y={H - 10}
           textAnchor="middle"
-          fontSize="10"
+          fontSize="13"
           fill="#C4CDD5"
         >
           Selecciona un nodo para configurarlo
@@ -891,10 +875,10 @@ export function CrearAgenteView() {
           style={{ background: "#F7F8FA" }}
         >
           {/* Graph area */}
-          <div className="flex-1 flex items-center justify-center p-8">
+          <div className="flex-1 flex items-center justify-center p-6">
             <div
-              className="relative w-full h-full max-w-lg"
-              style={{ maxHeight: "500px" }}
+              className="relative w-full h-full"
+              style={{ maxWidth: "680px", maxHeight: "620px" }}
             >
               {/* Background grid dots */}
               <svg
