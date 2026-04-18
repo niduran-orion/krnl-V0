@@ -50,7 +50,7 @@ const navSections = [
     label: "GESTIÓN",
     items: [
       { icon: LayoutDashboard, label: "Dashboard",      href: "#" },
-      { icon: Bot,             label: "Agentes",        href: "/agente/conocimiento" },
+      { icon: Bot,             label: "Agentes",        href: "/agente/crear" },
       { icon: BookOpen,        label: "Colecciones",    href: "#" },
     ],
   },
@@ -97,7 +97,7 @@ const navSections = [
   {
     label: "AVANZADO",
     items: [
-      { icon: Code2,     label: "Agent Studio",         href: "#" },
+      { icon: Code2,     label: "Agent Builder",        href: "/agent-builder" },
       { icon: GitBranch, label: "Workflows",             href: "#" },
       { icon: Shield,    label: "Guardrails / Políticas",href: "/guardrails" },
       { icon: FileText,  label: "Logs / Observabilidad", href: "#" },
@@ -367,7 +367,7 @@ export function AppShell({ children }: AppShellProps) {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto" style={{ background: "#F7F8FA" }}>
+        <main className="flex-1 overflow-y-auto min-h-0" style={{ background: "#F7F8FA" }}>
           {children}
         </main>
       </div>
