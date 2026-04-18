@@ -154,6 +154,7 @@ interface GraphProps {
   selectedNode: NodeId | null
   onSelectNode: (id: NodeId) => void
   configuredNodes: Set<NodeId>
+  onHoverNode: (id: NodeId | null) => void
 }
 
 type NodeTooltip = {
@@ -181,8 +182,7 @@ const NODE_TOOLTIPS: Record<NodeId, NodeTooltip> = {
   },
 }
 
-function AgentGraph({ selectedNode, onSelectNode, configuredNodes }: GraphProps) {
-  const [hoveredNode, setHoveredNode] = useState<NodeId | null>(null)
+function AgentGraph({ selectedNode, onSelectNode, configuredNodes, onHoverNode }: GraphProps) {
 
   // Layout constants — tall viewBox for prominence
   const W = 560
@@ -271,8 +271,8 @@ function AgentGraph({ selectedNode, onSelectNode, configuredNodes }: GraphProps)
             key={node.id}
             style={{ cursor: "pointer" }}
             onClick={() => onSelectNode(node.id)}
-            onMouseEnter={() => setHoveredNode(node.id)}
-            onMouseLeave={() => setHoveredNode(null)}
+            onMouseEnter={() => onHoverNode(node.id)}
+            onMouseLeave={() => onHoverNode(null)}
           >
             {/* Selection glow */}
             {isSelected && (
@@ -379,65 +379,6 @@ function AgentGraph({ selectedNode, onSelectNode, configuredNodes }: GraphProps)
           </g>
         )
       })}
-
-      {/* ── Node tooltip ── */}
-      {hoveredNode && (() => {
-        const tip = NODE_TOOLTIPS[hoveredNode]
-        const pos = positions[hoveredNode]
-        const tipW = 230
-        const tipH = tip.linkLabel ? 80 : 60
-        // place tooltip to the right if space, else left
-        const spaceRight = W - (pos.x + pos.w)
-        const tipX = spaceRight >= tipW + 12
-          ? pos.x + pos.w + 10
-          : pos.x - tipW - 10
-        const tipY = pos.y + pos.h / 2 - tipH / 2
-        return (
-          <foreignObject
-            key={`tip-${hoveredNode}`}
-            x={tipX} y={Math.max(4, Math.min(tipY, H - tipH - 4))}
-            width={tipW} height={tipH}
-            style={{ pointerEvents: "none", overflow: "visible" }}
-          >
-            <div
-              xmlns="http://www.w3.org/1999/xhtml"
-              style={{
-                background: "#1C2434",
-                color: "#FFFFFF",
-                borderRadius: "10px",
-                padding: "10px 12px",
-                fontSize: "11px",
-                lineHeight: "1.5",
-                boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
-                width: `${tipW}px`,
-              }}
-            >
-              <p style={{ margin: 0 }}>{tip.message}</p>
-              {tip.linkLabel && tip.linkHref && (
-                <a
-                  href={tip.linkHref}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "4px",
-                    marginTop: "6px",
-                    fontSize: "10px",
-                    fontWeight: 600,
-                    color: "#D4009A",
-                    background: "rgba(212,0,154,0.12)",
-                    borderRadius: "6px",
-                    padding: "2px 8px",
-                    textDecoration: "none",
-                    pointerEvents: "auto",
-                  }}
-                >
-                  → {tip.linkLabel}
-                </a>
-              )}
-            </div>
-          </foreignObject>
-        )
-      })()}
 
       {/* ── Tap hint ── */}
       {!selectedNode && (
@@ -849,6 +790,7 @@ export function CrearAgenteView() {
   const [configuredNodes, setConfiguredNodes] = useState<Set<NodeId>>(
     new Set(["guardrail", "knowledge-agent"])
   )
+  const [hoveredNode, setHoveredNode] = useState<NodeId | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([
     { role: "agent", text: "Hola, soy el agente que estás configurando. Prueba cómo respondo." },
@@ -986,7 +928,94 @@ export function CrearAgenteView() {
                 selectedNode={selectedNode}
                 onSelectNode={handleSelectNode}
                 configuredNodes={configuredNodes}
+                onHoverNode={setHoveredNode}
               />
+
+              {/* ── Tooltip overlay (HTML, not SVG — no clipping) ── */}
+              {hoveredNode && (() => {
+                const tip = NODE_TOOLTIPS[hoveredNode]
+                // viewBox coords → % of container
+                // W=560, H=520 (the SVG viewBox)
+                const W = 560, H = 520
+                const pos = {
+                  "guardrail":       { x: 130, y: 30,  w: 300, h: 80  },
+                  "main-agent":      { x: 130, y: 170, w: 300, h: 80  },
+                  "knowledge-agent": { x: 10,  y: 340, w: 255, h: 88  },
+                  "tools-agent":     { x: 295, y: 340, w: 255, h: 88  },
+                }[hoveredNode]
+                const centerYPct = ((pos.y + pos.h / 2) / H) * 100
+                const rightEdgePct = ((pos.x + pos.w) / W) * 100
+                const leftEdgePct = (pos.x / W) * 100
+                // place right if right-edge is before 60%, else left
+                const placeRight = rightEdgePct < 60
+                return (
+                  <div
+                    key={`tip-${hoveredNode}`}
+                    style={{
+                      position: "absolute",
+                      top: `${centerYPct}%`,
+                      transform: "translateY(-50%)",
+                      ...(placeRight
+                        ? { left: `calc(${rightEdgePct}% + 12px)` }
+                        : { right: `calc(${100 - leftEdgePct}% + 12px)` }),
+                      width: "220px",
+                      zIndex: 50,
+                      pointerEvents: "none",
+                    }}
+                  >
+                    <div
+                      style={{
+                        background: "#1C2434",
+                        color: "#FFFFFF",
+                        borderRadius: "12px",
+                        padding: "12px 14px",
+                        fontSize: "12px",
+                        lineHeight: "1.55",
+                        boxShadow: "0 8px 24px rgba(0,0,0,0.22)",
+                      }}
+                    >
+                      <p style={{ margin: 0 }}>{tip.message}</p>
+                      {tip.linkLabel && tip.linkHref && (
+                        <a
+                          href={tip.linkHref}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            marginTop: "8px",
+                            fontSize: "11px",
+                            fontWeight: 600,
+                            color: "#D4009A",
+                            background: "rgba(212,0,154,0.15)",
+                            borderRadius: "6px",
+                            padding: "3px 10px",
+                            textDecoration: "none",
+                            pointerEvents: "auto",
+                          }}
+                        >
+                          → {tip.linkLabel}
+                        </a>
+                      )}
+                    </div>
+                    {/* Arrow tip */}
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        ...(placeRight ? { left: "-6px" } : { right: "-6px" }),
+                        width: 0,
+                        height: 0,
+                        borderTop: "6px solid transparent",
+                        borderBottom: "6px solid transparent",
+                        ...(placeRight
+                          ? { borderRight: "6px solid #1C2434" }
+                          : { borderLeft: "6px solid #1C2434" }),
+                      }}
+                    />
+                  </div>
+                )
+              })()}
             </div>
           </div>
 
