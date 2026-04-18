@@ -763,11 +763,27 @@ function SaveButton() {
 
 // ── Main view ─────────────────────────────────────────────────────────────
 
+type ChatMsg = { role: "user" | "agent"; text: string }
+
+const MOCK_AGENT_REPLIES = [
+  "Entendido, déjame procesar tu consulta con la base de conocimiento configurada.",
+  "Basándome en las colecciones conectadas, puedo ayudarte con eso. ¿Necesitas más detalles?",
+  "He revisado la documentación interna. Aquí tienes lo que encontré.",
+  "Con las herramientas que tengo disponibles, puedo gestionar eso. ¿Confirmas la acción?",
+]
+
 export function CrearAgenteView() {
   const [selectedNode, setSelectedNode] = useState<NodeId | null>(null)
   const [configuredNodes, setConfiguredNodes] = useState<Set<NodeId>>(
     new Set(["guardrail", "knowledge-agent"])
   )
+  const [chatOpen, setChatOpen] = useState(false)
+  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([
+    { role: "agent", text: "Hola, soy el agente que estás configurando. Prueba cómo respondo." },
+  ])
+  const [chatInput, setChatInput] = useState("")
+  const [chatThinking, setChatThinking] = useState(false)
+  const chatReplyIdx = useState(0)
 
   const handleSelectNode = useCallback((id: NodeId) => {
     setSelectedNode((prev) => (prev === id ? null : id))
@@ -776,6 +792,19 @@ export function CrearAgenteView() {
   const handleClosePanel = useCallback(() => {
     setSelectedNode(null)
   }, [])
+
+  const handleChatSend = useCallback(() => {
+    const text = chatInput.trim()
+    if (!text || chatThinking) return
+    setChatMessages((prev) => [...prev, { role: "user", text }])
+    setChatInput("")
+    setChatThinking(true)
+    setTimeout(() => {
+      const reply = MOCK_AGENT_REPLIES[Math.floor(Math.random() * MOCK_AGENT_REPLIES.length)]
+      setChatMessages((prev) => [...prev, { role: "agent", text: reply }])
+      setChatThinking(false)
+    }, 1200)
+  }, [chatInput, chatThinking])
 
   const selectedNodeData = NODES.find((n) => n.id === selectedNode)
 
@@ -830,13 +859,25 @@ export function CrearAgenteView() {
           <div className="w-px h-4 mx-1" style={{ background: "#E9ECEE" }} />
 
           <button
+            onClick={() => setChatOpen((o) => !o)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border transition-all"
+            style={chatOpen
+              ? { background: "#FFF0FA", borderColor: "#D4009A", color: "#D4009A" }
+              : { background: "#FFFFFF", borderColor: "#E9ECEE", color: "#637381" }
+            }
+          >
+            <Zap className="h-4 w-4" />
+            Probar agente
+          </button>
+
+          <button
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-colors"
             style={{ background: "#D4009A" }}
             onMouseEnter={(e) => (e.currentTarget.style.background = "#A4097B")}
             onMouseLeave={(e) => (e.currentTarget.style.background = "#D4009A")}
           >
             <Plus className="h-4 w-4" />
-            Guardar borrador
+            Guardar Agente
           </button>
         </div>
       </div>
@@ -846,33 +887,165 @@ export function CrearAgenteView() {
 
         {/* Graph canvas */}
         <div
-          className="flex-1 flex items-center justify-center p-8 transition-all"
+          className="flex-1 flex flex-col overflow-hidden transition-all"
           style={{ background: "#F7F8FA" }}
         >
-          <div
-            className="relative w-full h-full max-w-lg"
-            style={{ maxHeight: "500px" }}
-          >
-            {/* Background grid dots */}
-            <svg
-              className="absolute inset-0 w-full h-full pointer-events-none"
-              style={{ opacity: 0.4 }}
+          {/* Graph area */}
+          <div className="flex-1 flex items-center justify-center p-8">
+            <div
+              className="relative w-full h-full max-w-lg"
+              style={{ maxHeight: "500px" }}
             >
-              <defs>
-                <pattern id="dots" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
-                  <circle cx="1" cy="1" r="1" fill="#C4CDD5" />
-                </pattern>
-              </defs>
-              <rect width="100%" height="100%" fill="url(#dots)" />
-            </svg>
+              {/* Background grid dots */}
+              <svg
+                className="absolute inset-0 w-full h-full pointer-events-none"
+                style={{ opacity: 0.4 }}
+              >
+                <defs>
+                  <pattern id="dots" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <circle cx="1" cy="1" r="1" fill="#C4CDD5" />
+                  </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#dots)" />
+              </svg>
 
-            {/* The graph */}
-            <AgentGraph
-              selectedNode={selectedNode}
-              onSelectNode={handleSelectNode}
-              configuredNodes={configuredNodes}
-            />
+              {/* The graph */}
+              <AgentGraph
+                selectedNode={selectedNode}
+                onSelectNode={handleSelectNode}
+                configuredNodes={configuredNodes}
+              />
+            </div>
           </div>
+
+          {/* ── Mini test chat ──────────────────────────────────────────── */}
+          {chatOpen && (
+            <div
+              className="shrink-0 border-t flex flex-col"
+              style={{
+                background: "#FFFFFF",
+                borderColor: "rgba(145,158,171,0.16)",
+                height: "260px",
+                animation: "slideUpChat 0.18s ease-out",
+              }}
+            >
+              {/* Chat header */}
+              <div
+                className="flex items-center justify-between px-4 py-2.5 border-b shrink-0"
+                style={{ borderColor: "rgba(145,158,171,0.12)" }}
+              >
+                <div className="flex items-center gap-2">
+                  <div
+                    className="h-5 w-5 rounded-md flex items-center justify-center"
+                    style={{ background: "linear-gradient(135deg,#D4009A,#5E24D5)" }}
+                  >
+                    <Zap className="h-3 w-3 text-white" />
+                  </div>
+                  <span className="text-xs font-semibold" style={{ color: "#1C2434" }}>
+                    Probar agente
+                  </span>
+                  <span
+                    className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                    style={{ background: "#F0FFF4", color: "#16A34A" }}
+                  >
+                    simulado
+                  </span>
+                </div>
+                <button
+                  onClick={() => setChatOpen(false)}
+                  className="p-1 rounded-lg transition-colors hover:bg-slate-100"
+                  style={{ color: "#637381" }}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5">
+                {chatMessages.map((msg, i) => (
+                  <div
+                    key={i}
+                    className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
+                  >
+                    {msg.role === "agent" && (
+                      <div
+                        className="h-5 w-5 rounded-md flex items-center justify-center shrink-0 mt-0.5"
+                        style={{ background: "linear-gradient(135deg,#D4009A,#5E24D5)" }}
+                      >
+                        <Zap className="h-2.5 w-2.5 text-white" />
+                      </div>
+                    )}
+                    <div
+                      className="text-xs px-3 py-1.5 rounded-xl max-w-[75%] leading-relaxed"
+                      style={
+                        msg.role === "user"
+                          ? { background: "#0F2870", color: "#FFFFFF", borderRadius: "12px 4px 12px 12px" }
+                          : { background: "#F4F6F8", color: "#1C2434", borderRadius: "4px 12px 12px 12px" }
+                      }
+                    >
+                      {msg.text}
+                    </div>
+                  </div>
+                ))}
+                {chatThinking && (
+                  <div className="flex gap-2">
+                    <div
+                      className="h-5 w-5 rounded-md flex items-center justify-center shrink-0"
+                      style={{ background: "linear-gradient(135deg,#D4009A,#5E24D5)" }}
+                    >
+                      <Zap className="h-2.5 w-2.5 text-white" />
+                    </div>
+                    <div
+                      className="px-3 py-2 rounded-xl"
+                      style={{ background: "#F4F6F8", borderRadius: "4px 12px 12px 12px" }}
+                    >
+                      <div className="flex gap-1 items-center">
+                        {[0, 1, 2].map((i) => (
+                          <span
+                            key={i}
+                            className="h-1.5 w-1.5 rounded-full"
+                            style={{
+                              background: "#D4009A",
+                              animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite`,
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Input */}
+              <div
+                className="shrink-0 px-4 py-2.5 border-t flex items-center gap-2"
+                style={{ borderColor: "rgba(145,158,171,0.12)" }}
+              >
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleChatSend()}
+                  placeholder="Escribe un mensaje para probar el agente..."
+                  className="flex-1 text-xs outline-none bg-transparent placeholder:text-[#9AA3B0]"
+                  style={{ color: "#1C2434" }}
+                  disabled={chatThinking}
+                />
+                <button
+                  onClick={handleChatSend}
+                  disabled={!chatInput.trim() || chatThinking}
+                  className="h-6 w-6 rounded-lg flex items-center justify-center transition-all shrink-0"
+                  style={
+                    chatInput.trim() && !chatThinking
+                      ? { background: "#D4009A", color: "#FFFFFF" }
+                      : { background: "#E5E7EB", color: "#9CA3AF" }
+                  }
+                >
+                  <Send className="h-3 w-3" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Config panel — slides in when a node is selected */}
@@ -899,6 +1072,14 @@ export function CrearAgenteView() {
         @keyframes slideInRight {
           from { transform: translateX(24px); opacity: 0; }
           to   { transform: translateX(0);    opacity: 1; }
+        }
+        @keyframes slideUpChat {
+          from { transform: translateY(16px); opacity: 0; }
+          to   { transform: translateY(0);    opacity: 1; }
+        }
+        @keyframes bounce {
+          0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+          40%           { transform: scale(1);   opacity: 1;   }
         }
       `}</style>
     </div>
