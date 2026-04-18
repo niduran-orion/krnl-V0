@@ -156,7 +156,34 @@ interface GraphProps {
   configuredNodes: Set<NodeId>
 }
 
+type NodeTooltip = {
+  message: string
+  linkLabel?: string
+  linkHref?: string
+}
+
+const NODE_TOOLTIPS: Record<NodeId, NodeTooltip> = {
+  "guardrail": {
+    message: "Tu primera linea de defensa. Define que puede y que no puede decir tu agente antes de responder.",
+  },
+  "main-agent": {
+    message: "El cerebro de tu agente. Configura el modelo, la temperatura y las instrucciones que definen su personalidad y comportamiento.",
+  },
+  "knowledge-agent": {
+    message: "Selecciona tus fuentes de verdad y evita alucinaciones. Recuerda que puedes configurar tus fuentes en",
+    linkLabel: "Fuentes de datos",
+    linkHref: "/fuentes-de-datos",
+  },
+  "tools-agent": {
+    message: "Define las acciones que tu agente puede ejecutar: enviar emails, buscar en CRM, crear tickets y mas. Configura tus integraciones en",
+    linkLabel: "Integraciones",
+    linkHref: "/integraciones",
+  },
+}
+
 function AgentGraph({ selectedNode, onSelectNode, configuredNodes }: GraphProps) {
+  const [hoveredNode, setHoveredNode] = useState<NodeId | null>(null)
+
   // Layout constants — tall viewBox for prominence
   const W = 560
   const H = 520
@@ -244,6 +271,8 @@ function AgentGraph({ selectedNode, onSelectNode, configuredNodes }: GraphProps)
             key={node.id}
             style={{ cursor: "pointer" }}
             onClick={() => onSelectNode(node.id)}
+            onMouseEnter={() => setHoveredNode(node.id)}
+            onMouseLeave={() => setHoveredNode(null)}
           >
             {/* Selection glow */}
             {isSelected && (
@@ -350,6 +379,65 @@ function AgentGraph({ selectedNode, onSelectNode, configuredNodes }: GraphProps)
           </g>
         )
       })}
+
+      {/* ── Node tooltip ── */}
+      {hoveredNode && (() => {
+        const tip = NODE_TOOLTIPS[hoveredNode]
+        const pos = positions[hoveredNode]
+        const tipW = 230
+        const tipH = tip.linkLabel ? 80 : 60
+        // place tooltip to the right if space, else left
+        const spaceRight = W - (pos.x + pos.w)
+        const tipX = spaceRight >= tipW + 12
+          ? pos.x + pos.w + 10
+          : pos.x - tipW - 10
+        const tipY = pos.y + pos.h / 2 - tipH / 2
+        return (
+          <foreignObject
+            key={`tip-${hoveredNode}`}
+            x={tipX} y={Math.max(4, Math.min(tipY, H - tipH - 4))}
+            width={tipW} height={tipH}
+            style={{ pointerEvents: "none", overflow: "visible" }}
+          >
+            <div
+              xmlns="http://www.w3.org/1999/xhtml"
+              style={{
+                background: "#1C2434",
+                color: "#FFFFFF",
+                borderRadius: "10px",
+                padding: "10px 12px",
+                fontSize: "11px",
+                lineHeight: "1.5",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
+                width: `${tipW}px`,
+              }}
+            >
+              <p style={{ margin: 0 }}>{tip.message}</p>
+              {tip.linkLabel && tip.linkHref && (
+                <a
+                  href={tip.linkHref}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    marginTop: "6px",
+                    fontSize: "10px",
+                    fontWeight: 600,
+                    color: "#D4009A",
+                    background: "rgba(212,0,154,0.12)",
+                    borderRadius: "6px",
+                    padding: "2px 8px",
+                    textDecoration: "none",
+                    pointerEvents: "auto",
+                  }}
+                >
+                  → {tip.linkLabel}
+                </a>
+              )}
+            </div>
+          </foreignObject>
+        )
+      })()}
 
       {/* ── Tap hint ── */}
       {!selectedNode && (
