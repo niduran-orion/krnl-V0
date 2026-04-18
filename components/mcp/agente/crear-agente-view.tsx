@@ -210,7 +210,7 @@ function AgentGraph({ selectedNode, onSelectNode, configuredNodes }: GraphProps)
     <svg
       viewBox={`0 0 ${W} ${H}`}
       className="w-full h-full"
-      style={{ maxHeight: "100%" }}
+      style={{ maxHeight: "100%", fontSize: "48px" }}
     >
       {/* ── Edges ── */}
       <defs>
