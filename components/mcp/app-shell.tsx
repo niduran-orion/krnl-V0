@@ -30,8 +30,15 @@ import {
   Monitor,
   MessageCircle,
   Webhook,
+  User,
+  Users,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+
+const logsSubItems = [
+  { icon: User,  label: "Mi observabilidad", href: "/logs/usuario" },
+  { icon: Users, label: "Equipo",             href: "/logs/admin"   },
+]
 
 const integrationSubItems = [
   { icon: FileCode2, label: "Catálogo Templates", href: "/templates" },
@@ -100,7 +107,14 @@ const navSections = [
       { icon: Code2,     label: "Agent Builder",        href: "/agent-builder" },
       { icon: GitBranch, label: "Workflows",             href: "#" },
       { icon: Shield,    label: "Guardrails / Políticas",href: "/guardrails" },
-      { icon: FileText,  label: "Logs / Observabilidad", href: "#" },
+      {
+        icon: FileText,
+        label: "Logs / Observabilidad",
+        href: "/logs/usuario",
+        hasSubItems: true,
+        subItemsKey: "logs",
+        matchPaths: ["/logs/usuario", "/logs/admin"],
+      },
       { icon: Wrench,    label: "Config MCP / Tools",    href: "#" },
     ],
   },
@@ -115,6 +129,7 @@ export function AppShell({ children }: AppShellProps) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [integrationExpanded, setIntegrationExpanded] = useState(true)
   const [canalesExpanded, setCanalesExpanded] = useState(true)
+  const [logsExpanded, setLogsExpanded] = useState(true)
 
   const toggleSection = (label: string) =>
     setCollapsed((prev) => ({ ...prev, [label]: !prev[label] }))
@@ -185,11 +200,21 @@ export function AppShell({ children }: AppShellProps) {
                       const active = hasSubItems
                         ? isIntegrationsActive((item as any).matchPaths)
                         : item.href !== "#" && pathname.startsWith(item.href)
-                      const isExpanded = subItemsKey === "canales" ? canalesExpanded : integrationExpanded
+                      const isExpanded = subItemsKey === "canales"
+                        ? canalesExpanded
+                        : subItemsKey === "logs"
+                        ? logsExpanded
+                        : integrationExpanded
                       const toggleExpanded = subItemsKey === "canales"
                         ? () => setCanalesExpanded(!canalesExpanded)
+                        : subItemsKey === "logs"
+                        ? () => setLogsExpanded(!logsExpanded)
                         : () => setIntegrationExpanded(!integrationExpanded)
-                      const currentSubItems = subItemsKey === "canales" ? canalesSubItems : integrationSubItems
+                      const currentSubItems = subItemsKey === "canales"
+                        ? canalesSubItems
+                        : subItemsKey === "logs"
+                        ? logsSubItems
+                        : integrationSubItems
 
                       return (
                         <div key={item.label}>
