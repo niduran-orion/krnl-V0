@@ -6,15 +6,9 @@ import {
   AlertTriangle,
   XCircle,
   ChevronDown,
-  Bot,
   ShieldCheck,
-  Cpu,
   ThumbsUp,
   ThumbsDown,
-  Zap,
-  Settings,
-  Plus,
-  ChevronRight,
   X,
   TrendingUp,
   Activity,
@@ -394,36 +388,24 @@ export function EvaluacionesView() {
               Calidad de tus agentes CORE en produccion — respuesta final y cada sub-agente del grafo
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            {/* Agent selector */}
-            <div className="relative">
-              <select
-                value={agentFilter}
-                onChange={(e) => setAgentFilter(e.target.value)}
-                className="appearance-none text-sm pl-3 pr-8 py-2 rounded-xl border outline-none"
-                style={{
-                  background: "#FFFFFF",
-                  borderColor: "rgba(145,158,171,0.24)",
-                  color: "#1C2434",
-                }}
-              >
-                <option value="todos">Todos mis agentes CORE</option>
-                {AGENTS.map((a) => (
-                  <option key={a.id} value={a.name}>{a.name}</option>
-                ))}
-              </select>
-              <ChevronDown className="h-3.5 w-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: "#637381" }} />
-            </div>
-            {/* New evaluator button */}
-            <button
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-colors"
-              style={{ background: "#D4009A" }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#A4097B")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "#D4009A")}
+          {/* Agent selector */}
+          <div className="relative">
+            <select
+              value={agentFilter}
+              onChange={(e) => setAgentFilter(e.target.value)}
+              className="appearance-none text-sm pl-3 pr-8 py-2 rounded-xl border outline-none"
+              style={{
+                background: "#FFFFFF",
+                borderColor: "rgba(145,158,171,0.24)",
+                color: "#1C2434",
+              }}
             >
-              <Plus className="h-4 w-4" />
-              Nuevo evaluador
-            </button>
+              <option value="todos">Todos mis agentes CORE</option>
+              {AGENTS.map((a) => (
+                <option key={a.id} value={a.name}>{a.name}</option>
+              ))}
+            </select>
+            <ChevronDown className="h-3.5 w-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: "#637381" }} />
           </div>
         </div>
 
@@ -558,16 +540,7 @@ export function EvaluacionesView() {
 
             {/* Right: active evaluators */}
             <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold" style={{ color: "#1C2434" }}>Evaluadores activos</p>
-                <button
-                  className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border transition-colors"
-                  style={{ borderColor: "rgba(145,158,171,0.24)", color: "#637381", background: "#FFFFFF" }}
-                >
-                  <Settings className="h-3.5 w-3.5" />
-                  Configurar
-                </button>
-              </div>
+              <p className="text-sm font-semibold" style={{ color: "#1C2434" }}>Evaluadores activos</p>
               <div className="flex flex-col gap-3">
                 {EVALUADORES.map((ev) => (
                   <EvaluadorCard key={ev.id} ev={ev} />
@@ -713,46 +686,6 @@ export function EvaluacionesView() {
                 <p className="text-sm" style={{ color: "#9AA3B0" }}>No hay evaluaciones para los filtros seleccionados.</p>
               </div>
             )}
-          </div>
-
-          {/* ── Offline evaluation CTA banner ─────────────────────────────── */}
-          <div
-            className="rounded-2xl p-5 flex items-center justify-between gap-4"
-            style={{
-              border: "1.5px dashed rgba(212,0,154,0.3)",
-              background: "rgba(212,0,154,0.03)",
-            }}
-          >
-            <div className="flex items-start gap-4">
-              <div
-                className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: "rgba(212,0,154,0.08)" }}
-              >
-                <Zap className="h-5 w-5" style={{ color: "#D4009A" }} />
-              </div>
-              <div>
-                <p className="text-sm font-semibold" style={{ color: "#1C2434" }}>
-                  Evaluacion offline sobre tu historial
-                </p>
-                <p className="text-xs mt-1 leading-relaxed" style={{ color: "#637381" }}>
-                  Corre tus evaluadores sobre trazas pasadas para detectar regresiones, calibrar nuevos modelos
-                  o validar cambios en los prompts antes de desplegar. Selecciona un rango de trazas y un evaluador.
-                </p>
-              </div>
-            </div>
-            <button
-              className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors whitespace-nowrap"
-              style={{ borderColor: "#D4009A", color: "#D4009A", background: "#FFFFFF" }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(212,0,154,0.06)"
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#FFFFFF"
-              }}
-            >
-              <ChevronRight className="h-4 w-4" />
-              Iniciar evaluacion offline
-            </button>
           </div>
 
         </div>
