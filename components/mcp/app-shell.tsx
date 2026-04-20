@@ -32,12 +32,14 @@ import {
   Webhook,
   User,
   Users,
+  FlaskConical,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const logsSubItems = [
-  { icon: User,  label: "Mi observabilidad", href: "/logs/usuario" },
-  { icon: Users, label: "Equipo",             href: "/logs/admin"   },
+  { icon: User,          label: "Mi observabilidad", href: "/logs/usuario"         },
+  { icon: Users,         label: "Equipo",             href: "/logs/admin"           },
+  { icon: FlaskConical,  label: "Evaluaciones",       href: "/logs/evaluaciones"    },
 ]
 
 const integrationSubItems = [
@@ -113,7 +115,7 @@ const navSections = [
         href: "/logs/usuario",
         hasSubItems: true,
         subItemsKey: "logs",
-        matchPaths: ["/logs/usuario", "/logs/admin"],
+        matchPaths: ["/logs/usuario", "/logs/admin", "/logs/evaluaciones"],
       },
       { icon: Wrench,    label: "Config MCP / Tools",    href: "#" },
     ],
