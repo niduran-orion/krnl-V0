@@ -399,6 +399,15 @@ export function AdminLogsView() {
   const totalGuardrail = Math.round(allAgents.reduce((s, a) => s + a.guardrailEvents, 0) * m)
   const avgSuccess     = allAgents.reduce((s, a) => s + a.successRate, 0) / allAgents.length
 
+  // Unique active users: all members who have at least one active agent in this period
+  // Hoy → subset, semana/mes/historico → more members surface
+  const uniqueActiveUsers = timeRange === "hoy"
+    ? MOCK_MEMBERS.filter((mem) => mem.agents.some((a) => a.status === "active")).length
+    : timeRange === "semana"
+    ? MOCK_MEMBERS.filter((mem) => mem.agents.some((a) => a.status !== "error")).length
+    : MOCK_MEMBERS.length
+  const totalMembers = MOCK_MEMBERS.length
+
   return (
     <div className="flex h-full" style={{ background: "#F7F8FA" }}>
 
@@ -468,10 +477,37 @@ export function AdminLogsView() {
 
           {/* KPI strip */}
           <div className="flex gap-4">
-            <KpiCard label="Ejecuciones totales"    value={kfmt(totalExecs)}                sub={currentRange.periodLabel} icon={Activity}    trend="up"      />
-            <KpiCard label="Tokens consumidos"       value={kfmt(totalTokens)}               sub={currentRange.periodLabel} icon={Zap}         trend="neutral" />
-            <KpiCard label="Tasa de éxito promedio" value={`${avgSuccess.toFixed(1)}%`}     sub="Promedio del equipo"      icon={TrendingUp}  trend="down"    />
-            <KpiCard label="Eventos guardrail"       value={kfmt(totalGuardrail)}             sub={currentRange.periodLabel} icon={ShieldAlert} trend="neutral" />
+            {/* Ejecuciones + users inline */}
+            <div
+              className="flex-1 rounded-2xl border p-4 flex flex-col gap-1.5"
+              style={{ background: "#FFFFFF", borderColor: "rgba(145,158,171,0.16)" }}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium" style={{ color: "#637381" }}>Ejecuciones totales</span>
+                <div
+                  className="h-7 w-7 rounded-xl flex items-center justify-center"
+                  style={{ background: "rgba(212,0,154,0.08)" }}
+                >
+                  <Activity className="h-3.5 w-3.5" style={{ color: "#D4009A" }} />
+                </div>
+              </div>
+              <p className="text-2xl font-bold" style={{ color: "#1C2434" }}>{kfmt(totalExecs)}</p>
+              {/* Unique users badge */}
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <div
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                  style={{ background: "rgba(94,36,213,0.08)", color: "#5E24D5" }}
+                >
+                  <Users className="h-3 w-3" />
+                  {uniqueActiveUsers} de {totalMembers} usuarios activos
+                </div>
+              </div>
+              <p className="text-[11px]" style={{ color: "#9AA3B0" }}>{currentRange.periodLabel}</p>
+            </div>
+
+            <KpiCard label="Tokens consumidos"       value={kfmt(totalTokens)}           sub={currentRange.periodLabel} icon={Zap}         trend="neutral" />
+            <KpiCard label="Tasa de éxito promedio" value={`${avgSuccess.toFixed(1)}%`} sub="Promedio del equipo"      icon={TrendingUp}  trend="down"    />
+            <KpiCard label="Eventos guardrail"       value={kfmt(totalGuardrail)}         sub={currentRange.periodLabel} icon={ShieldAlert} trend="neutral" />
           </div>
 
           {/* Execution by agent chart */}
