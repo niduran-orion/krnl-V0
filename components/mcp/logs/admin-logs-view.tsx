@@ -175,6 +175,17 @@ const BAR_DATA = [
   { label: "Ag. Políticas", value: 95, color: "#EF4444" },
 ]
 
+// ─── Time ranges ─────────────────────────────────────────────────────────────
+
+type TimeRange = "hoy" | "semana" | "mes" | "historico"
+
+const TIME_RANGES: { id: TimeRange; label: string; multiplier: number; periodLabel: string }[] = [
+  { id: "hoy",       label: "Hoy",          multiplier: 1,    periodLabel: "Hoy"          },
+  { id: "semana",    label: "Esta semana",   multiplier: 7,    periodLabel: "Esta semana"  },
+  { id: "mes",       label: "Este mes",      multiplier: 30,   periodLabel: "Este mes"     },
+  { id: "historico", label: "Histórico",     multiplier: 180,  periodLabel: "Todo el tiempo" },
+]
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const statusIcon = (s: Status) => {
@@ -364,23 +375,29 @@ export function AdminLogsView() {
   const [selectedTrace, setSelectedTrace] = useState<ExecutionTrace | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterArea, setFilterArea] = useState<string>("Todos")
+  const [timeRange, setTimeRange] = useState<TimeRange>("hoy")
 
-  const areas = ["Todos", ...Array.from(new Set(MOCK_MEMBERS.map((m) => m.area)))]
-  const maxBar = Math.max(...BAR_DATA.map((d) => d.value))
+  const currentRange = TIME_RANGES.find((r) => r.id === timeRange)!
+  const m = currentRange.multiplier
 
-  const filteredMembers = MOCK_MEMBERS.filter((m) => {
-    const matchArea = filterArea === "Todos" || m.area === filterArea
+  const areas = ["Todos", ...Array.from(new Set(MOCK_MEMBERS.map((mem) => mem.area)))]
+
+  const scaledBarData = BAR_DATA.map((d) => ({ ...d, value: Math.round(d.value * m) }))
+  const maxBar = Math.max(...scaledBarData.map((d) => d.value))
+
+  const filteredMembers = MOCK_MEMBERS.filter((mem) => {
+    const matchArea = filterArea === "Todos" || mem.area === filterArea
     const matchSearch = searchQuery === "" ||
-      m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.agents.some((a) => a.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      mem.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      mem.agents.some((a) => a.name.toLowerCase().includes(searchQuery.toLowerCase()))
     return matchArea && matchSearch
   })
 
-  const totalExecs = MOCK_MEMBERS.flatMap((m) => m.agents).reduce((s, a) => s + a.executions, 0)
-  const totalTokens = MOCK_MEMBERS.flatMap((m) => m.agents).reduce((s, a) => s + a.tokensUsed, 0)
-  const totalGuardrail = MOCK_MEMBERS.flatMap((m) => m.agents).reduce((s, a) => s + a.guardrailEvents, 0)
-  const avgSuccess = MOCK_MEMBERS.flatMap((m) => m.agents).reduce((s, a) => s + a.successRate, 0) /
-    MOCK_MEMBERS.flatMap((m) => m.agents).length
+  const allAgents = MOCK_MEMBERS.flatMap((mem) => mem.agents)
+  const totalExecs     = Math.round(allAgents.reduce((s, a) => s + a.executions, 0) * m)
+  const totalTokens    = Math.round(allAgents.reduce((s, a) => s + a.tokensUsed, 0) * m)
+  const totalGuardrail = Math.round(allAgents.reduce((s, a) => s + a.guardrailEvents, 0) * m)
+  const avgSuccess     = allAgents.reduce((s, a) => s + a.successRate, 0) / allAgents.length
 
   return (
     <div className="flex h-full" style={{ background: "#F7F8FA" }}>
@@ -390,7 +407,7 @@ export function AdminLogsView() {
 
         {/* Page header */}
         <div
-          className="flex items-center justify-between px-6 py-4 border-b shrink-0"
+          className="flex items-center justify-between px-6 py-4 border-b shrink-0 gap-4 flex-wrap"
           style={{ background: "#FFFFFF", borderColor: "rgba(145,158,171,0.16)" }}
         >
           <div>
@@ -401,7 +418,35 @@ export function AdminLogsView() {
               Observabilidad de todos los agentes del equipo — vista de administrador
             </p>
           </div>
-          <div className="flex items-center gap-2">
+
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Time range pill selector */}
+            <div
+              className="flex items-center rounded-xl p-1 gap-0.5"
+              style={{ background: "#F4F6F8" }}
+            >
+              {TIME_RANGES.map((r) => {
+                const active = timeRange === r.id
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => setTimeRange(r.id)}
+                    className="text-xs font-medium px-3 py-1.5 rounded-lg transition-all"
+                    style={{
+                      background: active ? "#FFFFFF" : "transparent",
+                      color: active ? "#D4009A" : "#637381",
+                      boxShadow: active ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
+                      fontWeight: active ? 600 : 500,
+                    }}
+                  >
+                    {r.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="w-px h-5" style={{ background: "rgba(145,158,171,0.2)" }} />
+
             <button
               className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors"
               style={{ borderColor: "rgba(145,158,171,0.24)", color: "#637381", background: "#FFFFFF" }}
@@ -423,10 +468,10 @@ export function AdminLogsView() {
 
           {/* KPI strip */}
           <div className="flex gap-4">
-            <KpiCard label="Ejecuciones totales" value={kfmt(totalExecs)} sub="+18% vs ayer" icon={Activity} trend="up" />
-            <KpiCard label="Tokens consumidos" value={kfmt(totalTokens)} sub="Período: hoy" icon={Zap} trend="neutral" />
-            <KpiCard label="Tasa de éxito promedio" value={`${avgSuccess.toFixed(1)}%`} sub="-0.4% vs ayer" icon={TrendingUp} trend="down" />
-            <KpiCard label="Eventos guardrail" value={String(totalGuardrail)} sub="Requieren revisión" icon={ShieldAlert} trend="neutral" />
+            <KpiCard label="Ejecuciones totales"    value={kfmt(totalExecs)}                sub={currentRange.periodLabel} icon={Activity}    trend="up"      />
+            <KpiCard label="Tokens consumidos"       value={kfmt(totalTokens)}               sub={currentRange.periodLabel} icon={Zap}         trend="neutral" />
+            <KpiCard label="Tasa de éxito promedio" value={`${avgSuccess.toFixed(1)}%`}     sub="Promedio del equipo"      icon={TrendingUp}  trend="down"    />
+            <KpiCard label="Eventos guardrail"       value={kfmt(totalGuardrail)}             sub={currentRange.periodLabel} icon={ShieldAlert} trend="neutral" />
           </div>
 
           {/* Execution by agent chart */}
@@ -437,11 +482,11 @@ export function AdminLogsView() {
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-sm font-semibold" style={{ color: "#1C2434" }}>Ejecuciones por agente</p>
-                <p className="text-xs mt-0.5" style={{ color: "#637381" }}>Hoy · Total acumulado</p>
+                <p className="text-xs mt-0.5" style={{ color: "#637381" }}>{currentRange.periodLabel} · Total acumulado</p>
               </div>
             </div>
             <div className="flex items-end gap-3 h-28">
-              {BAR_DATA.map((d) => (
+              {scaledBarData.map((d) => (
                 <div key={d.label} className="flex-1 flex flex-col items-center gap-1.5">
                   <span className="text-[10px] font-semibold" style={{ color: "#1C2434" }}>{kfmt(d.value)}</span>
                   <div className="w-full rounded-t-md" style={{

@@ -126,6 +126,17 @@ const TOKEN_USAGE = [
   { label: "Ag. Reportes", value: 18200, color: "#0891B2" },
 ]
 
+// ─── Time ranges ─────────────────────────────────────────────────────────────
+
+type TimeRange = "hoy" | "semana" | "mes" | "historico"
+
+const TIME_RANGES: { id: TimeRange; label: string; multiplier: number; periodLabel: string }[] = [
+  { id: "hoy",       label: "Hoy",          multiplier: 1,    periodLabel: "Hoy"            },
+  { id: "semana",    label: "Esta semana",   multiplier: 7,    periodLabel: "Esta semana"    },
+  { id: "mes",       label: "Este mes",      multiplier: 30,   periodLabel: "Este mes"       },
+  { id: "historico", label: "Histórico",     multiplier: 180,  periodLabel: "Todo el tiempo" },
+]
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const statusIcon = (s: Status, size = "h-3.5 w-3.5") => {
@@ -337,25 +348,30 @@ function ExecutionRow({ exec }: { exec: Execution }) {
 
 export function UserLogsView() {
   const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>("Todos")
+  const [timeRange, setTimeRange] = useState<TimeRange>("hoy")
 
-  const totalExecs = MY_AGENTS.reduce((s, a) => s + a.executions, 0)
-  const totalTokens = MY_AGENTS.reduce((s, a) => s + a.tokensUsed, 0)
-  const avgSuccess = MY_AGENTS.reduce((s, a) => s + a.successRate, 0) / MY_AGENTS.length
-  const avgLatency = MY_AGENTS.reduce((s, a) => s + a.avgLatency, 0) / MY_AGENTS.length
+  const currentRange = TIME_RANGES.find((r) => r.id === timeRange)!
+  const mul = currentRange.multiplier
+
+  const totalExecs  = Math.round(MY_AGENTS.reduce((s, a) => s + a.executions, 0) * mul)
+  const totalTokens = Math.round(MY_AGENTS.reduce((s, a) => s + a.tokensUsed, 0) * mul)
+  const avgSuccess  = MY_AGENTS.reduce((s, a) => s + a.successRate, 0) / MY_AGENTS.length
+  const avgLatency  = MY_AGENTS.reduce((s, a) => s + a.avgLatency, 0) / MY_AGENTS.length
 
   const agentFilters = ["Todos", ...MY_AGENTS.map((a) => a.name)]
   const filteredExecs = MY_EXECUTIONS.filter(
     (e) => selectedAgentFilter === "Todos" || e.agentName === selectedAgentFilter
   )
 
-  const maxToken = Math.max(...TOKEN_USAGE.map((t) => t.value))
+  const scaledTokenUsage = TOKEN_USAGE.map((t) => ({ ...t, value: Math.round(t.value * mul) }))
+  const maxToken = Math.max(...scaledTokenUsage.map((t) => t.value))
 
   return (
     <div className="flex flex-col h-full" style={{ background: "#F7F8FA" }}>
 
       {/* Page header */}
       <div
-        className="flex items-center justify-between px-6 py-4 border-b shrink-0"
+        className="flex items-center justify-between px-6 py-4 border-b shrink-0 gap-4 flex-wrap"
         style={{ background: "#FFFFFF", borderColor: "rgba(145,158,171,0.16)" }}
       >
         <div>
@@ -364,6 +380,31 @@ export function UserLogsView() {
             Trazabilidad y métricas de tus agentes CORE
           </p>
         </div>
+
+        {/* Time range pill selector */}
+        <div
+          className="flex items-center rounded-xl p-1 gap-0.5"
+          style={{ background: "#F4F6F8" }}
+        >
+          {TIME_RANGES.map((r) => {
+            const active = timeRange === r.id
+            return (
+              <button
+                key={r.id}
+                onClick={() => setTimeRange(r.id)}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-all"
+                style={{
+                  background: active ? "#FFFFFF" : "transparent",
+                  color: active ? "#D4009A" : "#637381",
+                  boxShadow: active ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
+                  fontWeight: active ? 600 : 500,
+                }}
+              >
+                {r.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -371,10 +412,10 @@ export function UserLogsView() {
 
           {/* KPI strip */}
           <div className="flex gap-4">
-            <KpiCard label="Mis ejecuciones" value={kfmt(totalExecs)} sub="Total histórico" icon={Activity} />
-            <KpiCard label="Tokens consumidos" value={kfmt(totalTokens)} sub="Todos los agentes" icon={Zap} accent="#5E24D5" />
-            <KpiCard label="Tasa de éxito" value={`${avgSuccess.toFixed(1)}%`} sub="Promedio" icon={TrendingUp} accent="#16A34A" />
-            <KpiCard label="Latencia promedio" value={`${Math.round(avgLatency)}ms`} sub="Por ejecución" icon={Clock} accent="#0891B2" />
+            <KpiCard label="Mis ejecuciones"   value={kfmt(totalExecs)}              sub={currentRange.periodLabel} icon={Activity}   />
+            <KpiCard label="Tokens consumidos"  value={kfmt(totalTokens)}             sub={currentRange.periodLabel} icon={Zap}        accent="#5E24D5" />
+            <KpiCard label="Tasa de éxito"      value={`${avgSuccess.toFixed(1)}%`}   sub="Promedio de agentes"      icon={TrendingUp} accent="#16A34A" />
+            <KpiCard label="Latencia promedio"  value={`${Math.round(avgLatency)}ms`} sub="Por ejecución"            icon={Clock}      accent="#0891B2" />
           </div>
 
           {/* My agents status row */}
@@ -457,7 +498,7 @@ export function UserLogsView() {
               Consumo de tokens por agente
             </p>
             <div className="space-y-3">
-              {TOKEN_USAGE.map((t) => (
+              {scaledTokenUsage.map((t) => (
                 <div key={t.label} className="flex items-center gap-3">
                   <span className="text-xs w-24 shrink-0 font-medium" style={{ color: "#454F5B" }}>{t.label}</span>
                   <div className="flex-1 h-2.5 rounded-full" style={{ background: "#F1F5F9" }}>
