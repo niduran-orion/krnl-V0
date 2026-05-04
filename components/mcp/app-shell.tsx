@@ -99,7 +99,7 @@ const navSections = [
     label: "ADMINISTRACIÓN",
     items: [
       { icon: Settings,   label: "Administración", href: "#" },
-      { icon: ShieldCheck,label: "Gestión de LLM", href: "#" },
+      { icon: ShieldCheck,label: "Gestión de LLM", href: "/gestion-llm" },
       { icon: Store,      label: "Marketplace",    href: "#" },
     ],
   },
