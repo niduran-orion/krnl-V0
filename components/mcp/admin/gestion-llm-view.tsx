@@ -13,6 +13,7 @@ import {
   Search,
   Users,
   Building2,
+  Link,
 } from "lucide-react"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -119,7 +120,6 @@ interface SharePanelProps {
 function SharePanel({ provider, onClose, onUpdate }: SharePanelProps) {
   const [scope, setScope] = useState<"personas" | "organizacion">("personas")
   const [searchQuery, setSearchQuery] = useState("")
-  const [permiso, setPermiso] = useState<"Usar" | "Editar">("Usar")
   const [selectedTarget, setSelectedTarget] = useState<typeof AREAS[0] | null>(null)
   const [sharedWith, setSharedWith] = useState<SharedEntry[]>(provider.sharedWith)
 
@@ -131,14 +131,14 @@ function SharePanel({ provider, onClose, onUpdate }: SharePanelProps) {
 
   const handleShare = () => {
     if (scope === "organizacion") {
-      const entry: SharedEntry = { id: "org", name: "Toda la organización", type: "area", permiso }
+      const entry: SharedEntry = { id: "org", name: "Toda la organización", type: "area", permiso: "Usar" }
       const next = [entry]
       setSharedWith(next)
       onUpdate({ ...provider, sharedWith: next })
       return
     }
     if (!selectedTarget) return
-    const entry: SharedEntry = { id: selectedTarget.id, name: selectedTarget.name, type: selectedTarget.type, permiso }
+    const entry: SharedEntry = { id: selectedTarget.id, name: selectedTarget.name, type: selectedTarget.type, permiso: "Usar" }
     const next = [...sharedWith.filter((s) => s.id !== entry.id), entry]
     setSharedWith(next)
     onUpdate({ ...provider, sharedWith: next })
@@ -200,44 +200,35 @@ function SharePanel({ provider, onClose, onUpdate }: SharePanelProps) {
 
           {/* Scope toggle */}
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={{ color: "#637381" }}>
-              Compartir con
+            <p className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={{ color: "#9AA3B0" }}>
+              COMPARTIR CON
             </p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setScope("personas")}
-                className="flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all"
-                style={{
-                  borderColor: scope === "personas" ? "#0F2870" : "rgba(145,158,171,0.24)",
-                  background: scope === "personas" ? "rgba(15,40,112,0.06)" : "#FFFFFF",
-                  color: scope === "personas" ? "#0F2870" : "#637381",
-                }}
-              >
-                <div
-                  className="h-4 w-4 rounded-full border-2 flex items-center justify-center shrink-0"
-                  style={{ borderColor: scope === "personas" ? "#0F2870" : "#9AA3B0" }}
-                >
-                  {scope === "personas" && <div className="h-2 w-2 rounded-full" style={{ background: "#0F2870" }} />}
-                </div>
-                Personas o áreas
-              </button>
-              <button
-                onClick={() => setScope("organizacion")}
-                className="flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all"
-                style={{
-                  borderColor: scope === "organizacion" ? "#0F2870" : "rgba(145,158,171,0.24)",
-                  background: scope === "organizacion" ? "rgba(15,40,112,0.06)" : "#FFFFFF",
-                  color: scope === "organizacion" ? "#0F2870" : "#637381",
-                }}
-              >
-                <div
-                  className="h-4 w-4 rounded-full border-2 flex items-center justify-center shrink-0"
-                  style={{ borderColor: scope === "organizacion" ? "#0F2870" : "#9AA3B0" }}
-                >
-                  {scope === "organizacion" && <div className="h-2 w-2 rounded-full" style={{ background: "#0F2870" }} />}
-                </div>
-                Toda la organización
-              </button>
+            <div className="grid grid-cols-2 gap-0 rounded-xl overflow-hidden border" style={{ borderColor: "rgba(145,158,171,0.2)" }}>
+              {([
+                { id: "personas",     label: "Personas o áreas"   },
+                { id: "organizacion", label: "Toda la organización" },
+              ] as const).map((opt) => {
+                const active = scope === opt.id
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={() => setScope(opt.id)}
+                    className="flex flex-col items-center gap-1 px-3 py-3 text-xs font-medium transition-all"
+                    style={{
+                      background: active ? "#1B2B6B" : "#FFFFFF",
+                      color: active ? "#FFFFFF" : "#637381",
+                    }}
+                  >
+                    <div
+                      className="h-4 w-4 rounded-full border-2 flex items-center justify-center"
+                      style={{ borderColor: active ? "#FFFFFF" : "#9AA3B0" }}
+                    >
+                      {active && <div className="h-2 w-2 rounded-full bg-white" />}
+                    </div>
+                    {opt.label}
+                  </button>
+                )
+              })}
             </div>
           </div>
 
@@ -303,39 +294,25 @@ function SharePanel({ provider, onClose, onUpdate }: SharePanelProps) {
             </div>
           )}
 
-          {/* Permission level */}
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={{ color: "#637381" }}>Nivel de permiso</p>
-            <div className="flex rounded-xl border overflow-hidden" style={{ borderColor: "rgba(145,158,171,0.24)" }}>
-              {(["Usar", "Editar"] as const).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setPermiso(p)}
-                  className="flex-1 py-2 text-sm font-semibold transition-all"
-                  style={{
-                    background: permiso === p ? "#0F2870" : "#FFFFFF",
-                    color: permiso === p ? "#FFFFFF" : "#637381",
-                  }}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-            <p className="text-[11px] mt-1.5 leading-relaxed" style={{ color: "#9AA3B0" }}>
-              {permiso === "Usar"
-                ? "* Usar permite consultar o utilizar el recurso sin modificarlo."
-                : "* Editar permite modificar la configuración del proveedor."}
-            </p>
-          </div>
+          {/* Permission info — read-only, always Usar */}
+          <p className="text-xs leading-relaxed" style={{ color: "#4B5FC7" }}>
+            ✦ Usar permite consultar o utilizar el recurso sin modificarlo.
+          </p>
 
           {/* Share button */}
           <button
             onClick={handleShare}
             disabled={scope === "personas" && !selectedTarget}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-white transition-all"
             style={{
-              background: (scope === "organizacion" || selectedTarget) ? "#0F2870" : "#C4CDD5",
+              background: (scope === "organizacion" || selectedTarget) ? "#1B2B6B" : "#C4CDD5",
               cursor: (scope === "organizacion" || selectedTarget) ? "pointer" : "not-allowed",
+            }}
+            onMouseEnter={(e) => {
+              if (scope === "organizacion" || selectedTarget) e.currentTarget.style.background = "#152258"
+            }}
+            onMouseLeave={(e) => {
+              if (scope === "organizacion" || selectedTarget) e.currentTarget.style.background = "#1B2B6B"
             }}
           >
             <Share2 className="h-4 w-4" />
@@ -344,9 +321,9 @@ function SharePanel({ provider, onClose, onUpdate }: SharePanelProps) {
 
           {/* People with access */}
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide mb-3" style={{ color: "#637381" }}>Con acceso</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide mb-3" style={{ color: "#9AA3B0" }}>PERSONAS CON ACCESO</p>
             {sharedWith.length === 0 ? (
-              <p className="text-sm text-center py-4" style={{ color: "#9AA3B0" }}>
+              <p className="text-sm text-center py-6" style={{ color: "#9AA3B0" }}>
                 Aún no se ha compartido este recurso con nadie.
               </p>
             ) : (
@@ -406,7 +383,7 @@ function SharePanel({ provider, onClose, onUpdate }: SharePanelProps) {
             onMouseEnter={(e) => (e.currentTarget.style.color = "#1C2434")}
             onMouseLeave={(e) => (e.currentTarget.style.color = "#637381")}
           >
-            <Check className="h-3.5 w-3.5" />
+            <Link className="h-3.5 w-3.5" />
             Copiar enlace
           </button>
           <button
@@ -675,7 +652,7 @@ export function GestionLlmView() {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr style={{ background: "#F7F8FA", borderBottom: "1px solid rgba(145,158,171,0.16)" }}>
-                {["PROVEEDOR", "ALIAS", "ESTADO", "ENDPOINT", "COMPARTIDO CON", "ACCIONES"].map((h, i) => (
+                {["PROVEEDOR", "ALIAS", "ESTADO", "ENDPOINT", "ACCESO", "ACCIONES"].map((h, i) => (
                   <th
                     key={h}
                     className="text-left px-5 py-3.5 text-[11px] font-semibold tracking-wider"
@@ -736,7 +713,7 @@ export function GestionLlmView() {
                   {/* Compartido con */}
                   <td className="px-5 py-3.5">
                     {prov.sharedWith.length === 0 ? (
-                      <span className="text-xs" style={{ color: "#C4CDD5" }}>Sin compartir</span>
+                      <span className="text-xs" style={{ color: "#9AA3B0" }}>No compartido</span>
                     ) : (
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {prov.sharedWith.slice(0, 2).map((s) => (
@@ -772,10 +749,10 @@ export function GestionLlmView() {
                       {/* Compartir */}
                       <button
                         onClick={() => setShareTarget(prov)}
-                        className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-colors"
-                        style={{ borderColor: "rgba(212,0,154,0.3)", color: "#D4009A", background: "rgba(212,0,154,0.04)" }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(212,0,154,0.1)")}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(212,0,154,0.04)")}
+                        className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors"
+                        style={{ borderColor: "rgba(145,158,171,0.24)", color: "#637381", background: "#FFFFFF" }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "#F4F6F8")}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = "#FFFFFF")}
                       >
                         <Share2 className="h-3.5 w-3.5" />
                         Compartir
