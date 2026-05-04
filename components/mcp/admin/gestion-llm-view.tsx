@@ -40,15 +40,28 @@ interface SharedEntry {
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
 const AREAS = [
-  { id: "a1", name: "Soporte al Cliente",   type: "area"    as const },
-  { id: "a2", name: "Ventas",               type: "area"    as const },
-  { id: "a3", name: "Marketing",            type: "area"    as const },
-  { id: "a4", name: "Operaciones",          type: "area"    as const },
-  { id: "a5", name: "Tecnología",           type: "area"    as const },
-  { id: "p1", name: "María González",       type: "persona" as const },
-  { id: "p2", name: "Carlos Rodríguez",     type: "persona" as const },
-  { id: "p3", name: "Ana Martínez",         type: "persona" as const },
+  { id: "a1", name: "Tecnología",         type: "area"    as const, members: 24 },
+  { id: "a2", name: "Operaciones",        type: "area"    as const, members: 12 },
+  { id: "a3", name: "Producto",           type: "area"    as const, members: 8  },
+  { id: "a4", name: "Ventas",             type: "area"    as const, members: 15 },
+  { id: "a5", name: "Soporte al Cliente", type: "area"    as const, members: 20 },
+  { id: "a6", name: "Marketing",          type: "area"    as const, members: 6  },
+  { id: "p1", name: "Ana Vargas",         type: "persona" as const, email: "ana.vargas@empresa.com",    members: 0 },
+  { id: "p2", name: "Carlos Mendes",      type: "persona" as const, email: "carlos.mendes@empresa.com", members: 0 },
+  { id: "p3", name: "Andrés Molina",      type: "persona" as const, email: "andres.molina@empresa.com", members: 0 },
+  { id: "p4", name: "María González",     type: "persona" as const, email: "maria.gonzalez@empresa.com", members: 0 },
+  { id: "p5", name: "Carlos Rodríguez",   type: "persona" as const, email: "carlos.rodriguez@empresa.com", members: 0 },
 ]
+
+// Avatar initials + deterministic color per name
+const AVATAR_COLORS = ["#4B5FC7", "#16A34A", "#D97706", "#DC2626", "#0891B2", "#7C3AED", "#D4009A"]
+function avatarColor(name: string) {
+  let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length]
+}
+function initials(name: string) {
+  return name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()
+}
 
 // Provider logos as inline SVG snippets
 function GeminiLogo() {
@@ -235,28 +248,115 @@ function SharePanel({ provider, onClose, onUpdate }: SharePanelProps) {
           {/* Search — only when personas mode */}
           {scope === "personas" && (
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "#637381" }}>
-                  Seleccionar destinatario
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "#9AA3B0" }}>
+                  SELECCIONAR DESTINATARIO
                 </p>
-                <button className="text-[11px] font-medium" style={{ color: "#0F2870" }}>Ver áreas</button>
+                <span className="text-[11px] font-semibold" style={{ color: "#1B2B6B" }}>Ver áreas</span>
               </div>
+
+              {/* Input */}
               <div className="relative">
-                <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: "#9AA3B0" }} />
                 <input
                   value={searchQuery}
                   onChange={(e) => { setSearchQuery(e.target.value); setSelectedTarget(null) }}
                   placeholder="Buscar persona, email o área..."
-                  className="w-full text-sm pl-9 pr-3 py-2.5 rounded-xl border outline-none"
-                  style={{ borderColor: "rgba(145,158,171,0.24)", color: "#1C2434", background: "#FFFFFF" }}
+                  className="w-full text-sm px-3 py-2.5 rounded-xl border outline-none transition-all"
+                  style={{
+                    borderColor: searchQuery.length > 0 ? "#1B2B6B" : "rgba(145,158,171,0.3)",
+                    boxShadow: searchQuery.length > 0 ? "0 0 0 2px rgba(27,43,107,0.12)" : "none",
+                    color: "#1C2434",
+                    background: "#FFFFFF",
+                  }}
                 />
               </div>
-              {/* Dropdown results */}
-              {searchQuery.length > 0 && filtered.length > 0 && (
-                <div
-                  className="mt-1 rounded-xl border overflow-hidden shadow-sm"
-                  style={{ borderColor: "rgba(145,158,171,0.2)", background: "#FFFFFF" }}
-                >
+
+              {/* Grouped dropdown — always shown while input focused / has text */}
+              {(() => {
+                const q = searchQuery.toLowerCase()
+                const matchedAreas   = AREAS.filter((a) => a.type === "area"    && (q === "" || a.name.toLowerCase().includes(q)))
+                const matchedPersonas = AREAS.filter((a) => a.type === "persona" && (q === "" || a.name.toLowerCase().includes(q) || (a.email ?? "").toLowerCase().includes(q)))
+                const showDropdown = searchQuery.length > 0 || true // always show on focus; simplify: show when query > 0 OR no target selected
+                if (!showDropdown || (matchedAreas.length === 0 && matchedPersonas.length === 0)) return null
+                if (selectedTarget) return null
+                return (
+                  <div
+                    className="mt-1 rounded-xl border shadow-md overflow-hidden"
+                    style={{ borderColor: "rgba(145,158,171,0.2)", background: "#FFFFFF" }}
+                  >
+                    {matchedAreas.length > 0 && (
+                      <>
+                        <div className="px-4 pt-3 pb-1">
+                          <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#9AA3B0" }}>Áreas frecuentes</p>
+                        </div>
+                        {matchedAreas.slice(0, 4).map((a) => (
+                          <button
+                            key={a.id}
+                            onClick={() => { setSelectedTarget(a); setSearchQuery(a.name) }}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors"
+                            onMouseEnter={(e) => (e.currentTarget.style.background = "#F4F6F8")}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = "")}
+                          >
+                            <div
+                              className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0"
+                              style={{ background: "#EEF1FF" }}
+                            >
+                              <Users className="h-4 w-4" style={{ color: "#1B2B6B" }} />
+                            </div>
+                            <div className="flex-1 min-w-0 text-left">
+                              <p className="text-sm font-medium" style={{ color: "#1C2434" }}>{a.name}</p>
+                              <p className="text-[11px]" style={{ color: "#9AA3B0" }}>{a.members} miembros</p>
+                            </div>
+                            <span
+                              className="text-[10px] font-bold px-2 py-0.5 rounded border shrink-0"
+                              style={{ borderColor: "rgba(145,158,171,0.3)", color: "#637381" }}
+                            >
+                              ÁREA
+                            </span>
+                          </button>
+                        ))}
+                      </>
+                    )}
+                    {matchedPersonas.length > 0 && (
+                      <>
+                        <div className="px-4 pt-3 pb-1">
+                          <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#9AA3B0" }}>Personas recientes</p>
+                        </div>
+                        {matchedPersonas.slice(0, 4).map((a) => (
+                          <button
+                            key={a.id}
+                            onClick={() => { setSelectedTarget(a); setSearchQuery(a.name) }}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors"
+                            onMouseEnter={(e) => (e.currentTarget.style.background = "#F4F6F8")}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = "")}
+                          >
+                            <div
+                              className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold text-white"
+                              style={{ background: avatarColor(a.name) }}
+                            >
+                              {initials(a.name)}
+                            </div>
+                            <div className="flex-1 min-w-0 text-left">
+                              <p className="text-sm font-medium" style={{ color: "#1C2434" }}>{a.name}</p>
+                              <p className="text-[11px] truncate" style={{ color: "#9AA3B0" }}>{a.email}</p>
+                            </div>
+                            <span
+                              className="text-[10px] font-bold px-2 py-0.5 rounded border shrink-0"
+                              style={{ borderColor: "rgba(145,158,171,0.3)", color: "#637381" }}
+                            >
+                              USUARIO
+                            </span>
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )
+              })()}
+
+              {/* Legacy filtered results block — replaced above, kept as stub */}
+              {false && searchQuery.length > 0 && filtered.length > 0 && (
+                <div className="hidden">
                   {filtered.slice(0, 5).map((a) => (
                     <button
                       key={a.id}
@@ -278,16 +378,30 @@ function SharePanel({ provider, onClose, onUpdate }: SharePanelProps) {
               )}
               {selectedTarget && (
                 <div
-                  className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl"
-                  style={{ background: "rgba(15,40,112,0.06)", border: "1px solid rgba(15,40,112,0.15)" }}
+                  className="mt-2 flex items-center gap-2.5 px-3 py-2 rounded-xl"
+                  style={{ background: "rgba(27,43,107,0.06)", border: "1px solid rgba(27,43,107,0.2)" }}
                 >
-                  {selectedTarget.type === "area"
-                    ? <Building2 className="h-3.5 w-3.5 shrink-0" style={{ color: "#0F2870" }} />
-                    : <Users className="h-3.5 w-3.5 shrink-0" style={{ color: "#0F2870" }} />
-                  }
-                  <span className="text-sm font-medium flex-1" style={{ color: "#0F2870" }}>{selectedTarget.name}</span>
-                  <button onClick={() => { setSelectedTarget(null); setSearchQuery("") }}>
-                    <X className="h-3.5 w-3.5" style={{ color: "#0F2870" }} />
+                  {selectedTarget.type === "area" ? (
+                    <div className="h-6 w-6 rounded-md flex items-center justify-center shrink-0" style={{ background: "#EEF1FF" }}>
+                      <Users className="h-3.5 w-3.5" style={{ color: "#1B2B6B" }} />
+                    </div>
+                  ) : (
+                    <div
+                      className="h-6 w-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold text-white"
+                      style={{ background: avatarColor(selectedTarget.name) }}
+                    >
+                      {initials(selectedTarget.name)}
+                    </div>
+                  )}
+                  <span className="text-sm font-semibold flex-1" style={{ color: "#1B2B6B" }}>{selectedTarget.name}</span>
+                  <span
+                    className="text-[10px] font-bold px-1.5 py-0.5 rounded border"
+                    style={{ borderColor: "rgba(27,43,107,0.2)", color: "#1B2B6B" }}
+                  >
+                    {selectedTarget.type === "area" ? "ÁREA" : "USUARIO"}
+                  </span>
+                  <button onClick={() => { setSelectedTarget(null); setSearchQuery("") }} className="ml-1">
+                    <X className="h-3.5 w-3.5" style={{ color: "#1B2B6B" }} />
                   </button>
                 </div>
               )}
