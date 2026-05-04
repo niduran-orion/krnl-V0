@@ -133,6 +133,7 @@ interface SharePanelProps {
 function SharePanel({ provider, onClose, onUpdate }: SharePanelProps) {
   const [scope, setScope] = useState<"personas" | "organizacion">("personas")
   const [searchQuery, setSearchQuery] = useState("")
+  const [showAreas, setShowAreas] = useState(false)
   const [selectedTarget, setSelectedTarget] = useState<typeof AREAS[0] | null>(null)
   const [sharedWith, setSharedWith] = useState<SharedEntry[]>(provider.sharedWith)
 
@@ -252,7 +253,13 @@ function SharePanel({ provider, onClose, onUpdate }: SharePanelProps) {
                 <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "#9AA3B0" }}>
                   SELECCIONAR DESTINATARIO
                 </p>
-                <span className="text-[11px] font-semibold" style={{ color: "#1B2B6B" }}>Ver áreas</span>
+                <button
+                  onClick={() => { setShowAreas((v) => !v); setSearchQuery(""); setSelectedTarget(null) }}
+                  className="text-[11px] font-semibold transition-opacity"
+                  style={{ color: "#1B2B6B" }}
+                >
+                  {showAreas ? "Ocultar áreas" : "Ver áreas"}
+                </button>
               </div>
 
               {/* Input */}
@@ -271,12 +278,12 @@ function SharePanel({ provider, onClose, onUpdate }: SharePanelProps) {
                 />
               </div>
 
-              {/* Grouped dropdown — always shown while input focused / has text */}
+              {/* Grouped dropdown — visible when typing OR when "Ver áreas" is toggled */}
               {(() => {
                 const q = searchQuery.toLowerCase()
-                const matchedAreas   = AREAS.filter((a) => a.type === "area"    && (q === "" || a.name.toLowerCase().includes(q)))
+                const matchedAreas    = AREAS.filter((a) => a.type === "area"    && (q === "" || a.name.toLowerCase().includes(q)))
                 const matchedPersonas = AREAS.filter((a) => a.type === "persona" && (q === "" || a.name.toLowerCase().includes(q) || (a.email ?? "").toLowerCase().includes(q)))
-                const showDropdown = searchQuery.length > 0 || true // always show on focus; simplify: show when query > 0 OR no target selected
+                const showDropdown = searchQuery.length > 0 || showAreas
                 if (!showDropdown || (matchedAreas.length === 0 && matchedPersonas.length === 0)) return null
                 if (selectedTarget) return null
                 return (
@@ -292,7 +299,7 @@ function SharePanel({ provider, onClose, onUpdate }: SharePanelProps) {
                         {matchedAreas.slice(0, 4).map((a) => (
                           <button
                             key={a.id}
-                            onClick={() => { setSelectedTarget(a); setSearchQuery(a.name) }}
+                            onClick={() => { setSelectedTarget(a); setSearchQuery(a.name); setShowAreas(false) }}
                             className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors"
                             onMouseEnter={(e) => (e.currentTarget.style.background = "#F4F6F8")}
                             onMouseLeave={(e) => (e.currentTarget.style.background = "")}
@@ -325,7 +332,7 @@ function SharePanel({ provider, onClose, onUpdate }: SharePanelProps) {
                         {matchedPersonas.slice(0, 4).map((a) => (
                           <button
                             key={a.id}
-                            onClick={() => { setSelectedTarget(a); setSearchQuery(a.name) }}
+                            onClick={() => { setSelectedTarget(a); setSearchQuery(a.name); setShowAreas(false) }}
                             className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors"
                             onMouseEnter={(e) => (e.currentTarget.style.background = "#F4F6F8")}
                             onMouseLeave={(e) => (e.currentTarget.style.background = "")}
@@ -354,28 +361,7 @@ function SharePanel({ provider, onClose, onUpdate }: SharePanelProps) {
                 )
               })()}
 
-              {/* Legacy filtered results block — replaced above, kept as stub */}
-              {false && searchQuery.length > 0 && filtered.length > 0 && (
-                <div className="hidden">
-                  {filtered.slice(0, 5).map((a) => (
-                    <button
-                      key={a.id}
-                      onClick={() => { setSelectedTarget(a); setSearchQuery(a.name) }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors"
-                      style={{ color: "#1C2434" }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "#F4F6F8")}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-                    >
-                      {a.type === "area"
-                        ? <Building2 className="h-3.5 w-3.5 shrink-0" style={{ color: "#637381" }} />
-                        : <Users className="h-3.5 w-3.5 shrink-0" style={{ color: "#637381" }} />
-                      }
-                      {a.name}
-                      <span className="text-[11px] ml-auto" style={{ color: "#9AA3B0" }}>{a.type === "area" ? "Área" : "Persona"}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
+
               {selectedTarget && (
                 <div
                   className="mt-2 flex items-center gap-2.5 px-3 py-2 rounded-xl"
