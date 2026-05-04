@@ -710,23 +710,47 @@ export function GestionLlmView() {
                     )}
                   </td>
 
-                  {/* Compartido con */}
-                  <td className="px-5 py-3.5">
+                  {/* Acceso — max 2 badges + "+N más" tooltip */}
+                  <td className="px-5 py-3.5 max-w-[160px]">
                     {prov.sharedWith.length === 0 ? (
                       <span className="text-xs" style={{ color: "#9AA3B0" }}>No compartido</span>
                     ) : (
-                      <div className="flex items-center gap-1.5 flex-wrap">
+                      <div className="flex items-center gap-1 overflow-hidden">
                         {prov.sharedWith.slice(0, 2).map((s) => (
                           <span
                             key={s.id}
-                            className="text-[11px] font-medium px-2 py-0.5 rounded-full"
+                            className="text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 truncate max-w-[72px]"
                             style={{ background: "rgba(15,40,112,0.08)", color: "#0F2870" }}
+                            title={s.name}
                           >
                             {s.name}
                           </span>
                         ))}
                         {prov.sharedWith.length > 2 && (
-                          <span className="text-[11px]" style={{ color: "#9AA3B0" }}>+{prov.sharedWith.length - 2}</span>
+                          <div className="relative group shrink-0">
+                            <span
+                              className="text-[11px] font-semibold px-2 py-0.5 rounded-full cursor-default select-none"
+                              style={{ background: "rgba(145,158,171,0.12)", color: "#637381" }}
+                            >
+                              +{prov.sharedWith.length - 2}
+                            </span>
+                            {/* Tooltip listing all extras */}
+                            <div
+                              className="absolute left-0 top-full mt-1.5 z-50 hidden group-hover:flex flex-col gap-1 rounded-xl shadow-lg p-3 min-w-[160px]"
+                              style={{ background: "#FFFFFF", border: "1px solid rgba(145,158,171,0.2)" }}
+                            >
+                              <p className="text-[10px] font-semibold uppercase tracking-wide mb-1" style={{ color: "#9AA3B0" }}>Todos los accesos</p>
+                              {prov.sharedWith.map((s) => (
+                                <span
+                                  key={s.id}
+                                  className="text-[11px] font-medium px-2 py-0.5 rounded-full w-fit"
+                                  style={{ background: "rgba(15,40,112,0.08)", color: "#0F2870" }}
+                                >
+                                  {s.name}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
                         )}
                       </div>
                     )}
