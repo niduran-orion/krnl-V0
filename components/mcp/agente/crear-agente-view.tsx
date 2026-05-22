@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import {
   ShieldCheck,
   Cpu,
@@ -24,6 +24,10 @@ import {
   Eye,
   Sliders,
   Send,
+  Power,
+  Trash2,
+  LayoutGrid,
+  RotateCcw,
 } from "lucide-react"
 import Link from "next/link"
 
@@ -34,6 +38,9 @@ type NodeId =
   | "main-agent"
   | "knowledge-agent"
   | "tools-agent"
+  | "memory-agent"
+  | "router-agent"
+  | "evaluator-agent"
 
 type NodeStatus = "configured" | "active" | "pending" | "warning"
 
@@ -62,6 +69,32 @@ interface Tool {
   icon: React.ElementType
 }
 
+interface CanvasNode {
+  id: string
+  type: string
+  label: string
+  description: string
+  xPct: number
+  yPct: number
+  color: string
+  bgColor: string
+  borderColor: string
+  icon: React.ElementType
+  enabled: boolean
+}
+
+interface NodeLibraryItem {
+  id: string
+  label: string
+  description: string
+  icon: React.ElementType
+  color: string
+  bgColor: string
+  borderColor: string
+  coreNodeId?: NodeId
+  onlyAdvanced?: boolean
+}
+
 // ── Mock data ──────────────────────────────────────────────────────────────
 
 const mockCollections: Collection[] = [
@@ -86,9 +119,112 @@ const GUARDRAIL_MODELS = ["Llama Guard 3", "Llama Guard 2", "Custom Policy"]
 const MAIN_MODELS      = ["GPT-4o", "Claude 3.5 Sonnet", "Gemini 1.5 Pro", "Mistral Large"]
 const CHANNELS         = ["Widget Web", "WhatsApp", "Slack", "API Directa"]
 
+const NODE_LIBRARY: NodeLibraryItem[] = [
+  {
+    id: "lib-guardrail",
+    label: "Guardrail",
+    description: "Políticas y seguridad",
+    icon: ShieldCheck,
+    color: "#16A34A",
+    bgColor: "#F0FDF4",
+    borderColor: "#BBF7D0",
+    coreNodeId: "guardrail",
+  },
+  {
+    id: "lib-main-agent",
+    label: "Agente principal",
+    description: "Cerebro del flujo",
+    icon: Cpu,
+    color: "#1D4ED8",
+    bgColor: "#EFF6FF",
+    borderColor: "#BFDBFE",
+    coreNodeId: "main-agent",
+  },
+  {
+    id: "lib-knowledge-agent",
+    label: "Ag. Conocimiento",
+    description: "RAG y colecciones",
+    icon: BookOpen,
+    color: "#16A34A",
+    bgColor: "#F0FDF4",
+    borderColor: "#BBF7D0",
+    coreNodeId: "knowledge-agent",
+  },
+  {
+    id: "lib-tools-agent",
+    label: "Ag. Herramientas",
+    description: "Acciones e integraciones",
+    icon: Wrench,
+    color: "#D4009A",
+    bgColor: "#FFF0FA",
+    borderColor: "#F9A8D4",
+    coreNodeId: "tools-agent",
+  },
+  {
+    id: "lib-router-agent",
+    label: "Router",
+    description: "Deriva por intención",
+    icon: Sliders,
+    color: "#6366F1",
+    bgColor: "#EEF2FF",
+    borderColor: "#C7D2FE",
+    coreNodeId: "router-agent",
+    onlyAdvanced: true,
+  },
+  {
+    id: "lib-memory-agent",
+    label: "Memoria",
+    description: "Contexto persistente",
+    icon: Database,
+    color: "#0EA5E9",
+    bgColor: "#F0F9FF",
+    borderColor: "#BAE6FD",
+    coreNodeId: "memory-agent",
+    onlyAdvanced: true,
+  },
+  {
+    id: "lib-evaluator-agent",
+    label: "Evaluador",
+    description: "Calidad y compliance",
+    icon: CheckCircle2,
+    color: "#059669",
+    bgColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+    coreNodeId: "evaluator-agent",
+    onlyAdvanced: true,
+  },
+  {
+    id: "lib-http",
+    label: "HTTP Request",
+    description: "Consume APIs externas",
+    icon: Globe,
+    color: "#0891B2",
+    bgColor: "#ECFEFF",
+    borderColor: "#A5F3FC",
+  },
+  {
+    id: "lib-condition",
+    label: "Condition",
+    description: "Ramifica con if/else",
+    icon: ChevronRight,
+    color: "#B45309",
+    bgColor: "#FFFBEB",
+    borderColor: "#FDE68A",
+  },
+  {
+    id: "lib-code",
+    label: "Code Node",
+    description: "Lógica custom",
+    icon: FileSearch,
+    color: "#7C3AED",
+    bgColor: "#F5F3FF",
+    borderColor: "#DDD6FE",
+  },
+]
+
 // ── Node definitions ───────────────────────────────────────────────────────
 
-const NODES: GraphNode[] = [
+const BASE_NODES: GraphNode[] = [
   {
     id:          "guardrail",
     label:       "Guardrail",
@@ -131,6 +267,43 @@ const NODES: GraphNode[] = [
   },
 ]
 
+const ADVANCED_EXTRA_NODES: GraphNode[] = [
+  {
+    id:          "memory-agent",
+    label:       "Memoria",
+    sublabel:    "Resumen + contexto",
+    status:      "active",
+    icon:        Database,
+    color:       "#0EA5E9",
+    bgColor:     "#F0F9FF",
+    borderColor: "#BAE6FD",
+  },
+  {
+    id:          "router-agent",
+    label:       "Router",
+    sublabel:    "Derivación por intención",
+    status:      "pending",
+    icon:        Sliders,
+    color:       "#6366F1",
+    bgColor:     "#EEF2FF",
+    borderColor: "#C7D2FE",
+  },
+  {
+    id:          "evaluator-agent",
+    label:       "Evaluador",
+    sublabel:    "Auto-chequeo de calidad",
+    status:      "configured",
+    icon:        CheckCircle2,
+    color:       "#059669",
+    bgColor:     "#ECFDF5",
+    borderColor: "#A7F3D0",
+  },
+]
+
+function getVisibleNodes(advancedMode: boolean): GraphNode[] {
+  return advancedMode ? [...BASE_NODES, ...ADVANCED_EXTRA_NODES] : BASE_NODES
+}
+
 // ── Status helpers ─────────────────────────────────────────────────────────
 
 function StatusDot({ status }: { status: NodeStatus }) {
@@ -151,10 +324,11 @@ function StatusDot({ status }: { status: NodeStatus }) {
 // ── SVG Graph ─────────────────────────────────────────────────────────────
 
 interface GraphProps {
-  selectedNode: NodeId | null
+  selectedNode: string | null
   onSelectNode: (id: NodeId) => void
   configuredNodes: Set<NodeId>
   onHoverNode: (id: NodeId | null) => void
+  advancedMode: boolean
 }
 
 type NodeTooltip = {
@@ -180,25 +354,61 @@ const NODE_TOOLTIPS: Record<NodeId, NodeTooltip> = {
     linkLabel: "Integraciones",
     linkHref: "/integraciones",
   },
+  "memory-agent": {
+    message: "Añade memoria conversacional y resumenes de contexto para mantener continuidad entre turnos y sesiones.",
+  },
+  "router-agent": {
+    message: "Enruta cada solicitud al sub-agente correcto segun intencion, idioma o tipo de tarea.",
+  },
+  "evaluator-agent": {
+    message: "Evalua la respuesta antes de enviarla: relevancia, seguridad y formato esperado.",
+  },
 }
 
-function AgentGraph({ selectedNode, onSelectNode, configuredNodes, onHoverNode }: GraphProps) {
+function getGraphLayout(advancedMode: boolean) {
+  const W = advancedMode ? 760 : 560
+  const H = advancedMode ? 560 : 520
+  const positions: Record<NodeId, { x: number; y: number; w: number; h: number }> = advancedMode
+    ? {
+        "guardrail":       { x: 230, y: 22,  w: 300, h: 78 },
+        "main-agent":      { x: 230, y: 145, w: 300, h: 78 },
+        "router-agent":    { x: 230, y: 268, w: 300, h: 78 },
+        "knowledge-agent": { x: 30,  y: 420, w: 210, h: 86 },
+        "tools-agent":     { x: 275, y: 420, w: 210, h: 86 },
+        "memory-agent":    { x: 520, y: 420, w: 210, h: 86 },
+        "evaluator-agent": { x: 520, y: 268, w: 210, h: 78 },
+      }
+    : {
+        "guardrail":       { x: 130, y: 30,  w: 300, h: 80 },
+        "main-agent":      { x: 130, y: 170, w: 300, h: 80 },
+        "knowledge-agent": { x: 10,  y: 340, w: 255, h: 88 },
+        "tools-agent":     { x: 295, y: 340, w: 255, h: 88 },
+        "memory-agent":    { x: 0, y: 0, w: 0, h: 0 },
+        "router-agent":    { x: 0, y: 0, w: 0, h: 0 },
+        "evaluator-agent": { x: 0, y: 0, w: 0, h: 0 },
+      }
 
-  // Layout constants — tall viewBox for prominence
-  const W = 560
-  const H = 520
+  const edges: [NodeId, NodeId][] = advancedMode
+    ? [
+        ["guardrail",  "main-agent"],
+        ["main-agent", "router-agent"],
+        ["router-agent", "knowledge-agent"],
+        ["router-agent", "tools-agent"],
+        ["router-agent", "memory-agent"],
+        ["main-agent", "evaluator-agent"],
+      ]
+    : [
+        ["guardrail",  "main-agent"],
+        ["main-agent", "knowledge-agent"],
+        ["main-agent", "tools-agent"],
+      ]
 
-  // Node positions — larger nodes, spread out for legibility
-  const positions: Record<NodeId, { x: number; y: number; w: number; h: number }> = {
-    "guardrail":       { x: 130, y: 30,  w: 300, h: 80 },
-    "main-agent":      { x: 130, y: 170, w: 300, h: 80 },
-    "knowledge-agent": { x: 10,  y: 340, w: 255, h: 88 },
-    "tools-agent":     { x: 295, y: 340, w: 255, h: 88 },
-  }
+  return { W, H, positions, edges }
+}
 
-  const nodeData: Record<NodeId, GraphNode> = Object.fromEntries(
-    NODES.map((n) => [n.id, n])
-  ) as Record<NodeId, GraphNode>
+function AgentGraph({ selectedNode, onSelectNode, configuredNodes, onHoverNode, advancedMode }: GraphProps) {
+  const { W, H, positions, edges } = getGraphLayout(advancedMode)
+  const visibleNodes = getVisibleNodes(advancedMode)
 
   const statusColors: Record<NodeStatus, string> = {
     configured: "#16A34A",
@@ -206,13 +416,6 @@ function AgentGraph({ selectedNode, onSelectNode, configuredNodes, onHoverNode }
     pending:    "#F59E0B",
     warning:    "#EF4444",
   }
-
-  // Edges: [from, to]
-  const edges: [NodeId, NodeId][] = [
-    ["guardrail",  "main-agent"],
-    ["main-agent", "knowledge-agent"],
-    ["main-agent", "tools-agent"],
-  ]
 
   const midX = (id: NodeId) => positions[id].x + positions[id].w / 2
   const botY = (id: NodeId) => positions[id].y + positions[id].h
@@ -259,7 +462,7 @@ function AgentGraph({ selectedNode, onSelectNode, configuredNodes, onHoverNode }
       })}
 
       {/* ── Nodes ── */}
-      {NODES.map((node) => {
+      {visibleNodes.map((node) => {
         const { x, y, w, h } = positions[node.id]
         const isSelected = selectedNode === node.id
         const isConfigured = configuredNodes.has(node.id)
@@ -372,6 +575,9 @@ function AgentGraph({ selectedNode, onSelectNode, configuredNodes, onHoverNode }
                   {node.id === "main-agent"      && <><rect x="4" y="4" width="16" height="16" rx="2"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="9" r="1"/><path d="M9 15a3 3 0 006 0"/></>}
                   {node.id === "knowledge-agent" && <><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></>}
                   {node.id === "tools-agent"     && <><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></>}
+                  {node.id === "memory-agent"    && <><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v8c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 10c0 1.7 3.1 3 7 3s7-1.3 7-3"/></>}
+                  {node.id === "router-agent"    && <><path d="M4 6h8"/><path d="M4 12h16"/><path d="M4 18h8"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="18" r="2"/></>}
+                  {node.id === "evaluator-agent" && <><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></>}
                   {node.id === "publish"         && <><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></>}
                 </svg>
               </div>
@@ -615,6 +821,194 @@ function ToolsAgentPanel({ onClose }: { onClose: () => void }) {
   )
 }
 
+function MemoryAgentPanel({ onClose }: { onClose: () => void }) {
+  const [strategy, setStrategy] = useState("Resumen por bloques")
+  const [windowSize, setWindowSize] = useState(8)
+  const [persistSession, setPersistSession] = useState(true)
+
+  return (
+    <ConfigPanelShell title="Memoria" subtitle="Gestiona contexto y continuidad" onClose={onClose} color="#0EA5E9">
+      <Field label="Estrategia de memoria">
+        <select
+          value={strategy}
+          onChange={(e) => setStrategy(e.target.value)}
+          className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+          style={{ borderColor: "#E9ECEE", background: "#F7F8FA", color: "#1C2434" }}
+        >
+          <option>Resumen por bloques</option>
+          <option>Memoria semántica</option>
+          <option>Buffer conversacional</option>
+        </select>
+      </Field>
+
+      <Field label={`Ventana de mensajes: ${windowSize}`}>
+        <input
+          type="range" min={2} max={20} value={windowSize}
+          onChange={(e) => setWindowSize(Number(e.target.value))}
+          className="w-full accent-[#0EA5E9]"
+        />
+      </Field>
+
+      <Field label="Persistencia de sesión">
+        <button
+          onClick={() => setPersistSession((v) => !v)}
+          className="w-full rounded-xl border px-3 py-2.5 text-left text-sm font-medium"
+          style={persistSession
+            ? { borderColor: "#0EA5E9", background: "#F0F9FF", color: "#0369A1" }
+            : { borderColor: "#E9ECEE", background: "#FFFFFF", color: "#637381" }
+          }
+        >
+          {persistSession ? "Activa: reutiliza contexto entre conversaciones" : "Desactivada: contexto efímero por chat"}
+        </button>
+      </Field>
+
+      <SaveButton />
+    </ConfigPanelShell>
+  )
+}
+
+function RouterAgentPanel({ onClose }: { onClose: () => void }) {
+  const [routingMode, setRoutingMode] = useState("Por intención")
+  const [fallbackNode, setFallbackNode] = useState("Agente principal")
+  const [confidence, setConfidence] = useState(72)
+
+  return (
+    <ConfigPanelShell title="Router" subtitle="Enruta tareas al subflujo correcto" onClose={onClose} color="#6366F1">
+      <Field label="Modo de enrutamiento">
+        <select
+          value={routingMode}
+          onChange={(e) => setRoutingMode(e.target.value)}
+          className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+          style={{ borderColor: "#E9ECEE", background: "#F7F8FA", color: "#1C2434" }}
+        >
+          <option>Por intención</option>
+          <option>Por tipo de canal</option>
+          <option>Por reglas</option>
+          <option>Híbrido</option>
+        </select>
+      </Field>
+
+      <Field label={`Umbral de confianza: ${confidence}%`}>
+        <input
+          type="range" min={40} max={95} value={confidence}
+          onChange={(e) => setConfidence(Number(e.target.value))}
+          className="w-full accent-[#6366F1]"
+        />
+      </Field>
+
+      <Field label="Nodo de fallback">
+        <select
+          value={fallbackNode}
+          onChange={(e) => setFallbackNode(e.target.value)}
+          className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+          style={{ borderColor: "#E9ECEE", background: "#F7F8FA", color: "#1C2434" }}
+        >
+          <option>Agente principal</option>
+          <option>Ag. Conocimiento</option>
+          <option>Ag. Herramientas</option>
+        </select>
+      </Field>
+
+      <SaveButton />
+    </ConfigPanelShell>
+  )
+}
+
+function EvaluatorAgentPanel({ onClose }: { onClose: () => void }) {
+  const [checks, setChecks] = useState<Set<string>>(new Set(["grounding", "format"]))
+
+  const options = [
+    { id: "grounding", label: "Consistencia con conocimiento" },
+    { id: "safety", label: "Chequeo de seguridad" },
+    { id: "format", label: "Validación de formato de salida" },
+    { id: "hallucination", label: "Detección de alucinación" },
+  ]
+
+  const toggle = (id: string) => {
+    setChecks((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  return (
+    <ConfigPanelShell title="Evaluador" subtitle="Valida calidad antes de responder" onClose={onClose} color="#059669">
+      <Field label="Checks activos">
+        <div className="space-y-2">
+          {options.map((opt) => {
+            const checked = checks.has(opt.id)
+            return (
+              <button
+                key={opt.id}
+                onClick={() => toggle(opt.id)}
+                className="w-full flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm"
+                style={checked
+                  ? { borderColor: "#059669", background: "#ECFDF5", color: "#047857" }
+                  : { borderColor: "#E9ECEE", background: "#FFFFFF", color: "#637381" }
+                }
+              >
+                {checked
+                  ? <CheckSquare className="h-4 w-4 shrink-0" />
+                  : <Square className="h-4 w-4 shrink-0" />
+                }
+                {opt.label}
+              </button>
+            )
+          })}
+        </div>
+      </Field>
+
+      <SaveButton />
+    </ConfigPanelShell>
+  )
+}
+
+function CustomCanvasNodePanel({ node, onClose }: { node: CanvasNode; onClose: () => void }) {
+  const [policy, setPolicy] = useState("Ejecución bajo demanda")
+  const [timeout, setTimeoutValue] = useState(15)
+
+  return (
+    <ConfigPanelShell title={node.label} subtitle={node.description} onClose={onClose} color={node.color}>
+      <Field label="Política de ejecución">
+        <select
+          value={policy}
+          onChange={(e) => setPolicy(e.target.value)}
+          className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+          style={{ borderColor: "#E9ECEE", background: "#F7F8FA", color: "#1C2434" }}
+        >
+          <option>Ejecución bajo demanda</option>
+          <option>Ejecución siempre</option>
+          <option>Solo con fallback</option>
+        </select>
+      </Field>
+
+      <Field label={`Timeout: ${timeout}s`}>
+        <input
+          type="range"
+          min={5}
+          max={60}
+          value={timeout}
+          onChange={(e) => setTimeoutValue(Number(e.target.value))}
+          className="w-full"
+          style={{ accentColor: node.color }}
+        />
+      </Field>
+
+      <Field label="Notas del nodo">
+        <textarea
+          rows={4}
+          placeholder="Describe reglas de este bloque en la maqueta..."
+          className="w-full resize-none rounded-xl border px-3 py-2.5 text-sm outline-none leading-relaxed"
+          style={{ borderColor: "#E9ECEE", background: "#F7F8FA", color: "#1C2434" }}
+        />
+      </Field>
+
+      <SaveButton />
+    </ConfigPanelShell>
+  )
+}
+
 function PublishPanel({ onClose }: { onClose: () => void }) {
   const [channels, setChannels] = useState<Set<string>>(new Set())
   const [visibility, setVisibility] = useState<"public" | "private">("private")
@@ -785,27 +1179,229 @@ const MOCK_AGENT_REPLIES = [
   "Con las herramientas que tengo disponibles, puedo gestionar eso. ¿Confirmas la acción?",
 ]
 
+const FLOW_PATTERNS = [
+  "Agente único",
+  "Router + especialistas",
+  "Planner -> Executor",
+  "Supervisor + workers",
+]
+
 export function CrearAgenteView() {
-  const [selectedNode, setSelectedNode] = useState<NodeId | null>(null)
-  const [configuredNodes, setConfiguredNodes] = useState<Set<NodeId>>(
-    new Set(["guardrail", "knowledge-agent"])
-  )
-  const [hoveredNode, setHoveredNode] = useState<NodeId | null>(null)
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [advancedMode, setAdvancedMode] = useState(true)
+  const [flowPattern, setFlowPattern] = useState(FLOW_PATTERNS[1])
+  const [maxSteps, setMaxSteps] = useState(6)
   const [chatOpen, setChatOpen] = useState(false)
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([
     { role: "agent", text: "Hola, soy el agente que estás configurando. Prueba cómo respondo." },
   ])
   const [chatInput, setChatInput] = useState("")
   const [chatThinking, setChatThinking] = useState(false)
-  const chatReplyIdx = useState(0)
-
-  const handleSelectNode = useCallback((id: NodeId) => {
-    setSelectedNode((prev) => (prev === id ? null : id))
-  }, [])
+  const [nodeQuery, setNodeQuery] = useState("")
+  const [canvasNodes, setCanvasNodes] = useState<CanvasNode[]>([])
+  const [edges, setEdges] = useState<Array<{ id: string; from: string; to: string }>>([])
+  const [linkDrag, setLinkDrag] = useState<{ fromNodeId: string; xPct: number; yPct: number } | null>(null)
+  const [dropActive, setDropActive] = useState(false)
+  const [dropHint, setDropHint] = useState<string>("Lienzo vacío: arrastra nodos desde la izquierda")
+  const visibleLibrary = NODE_LIBRARY.filter((item) => advancedMode || !item.onlyAdvanced)
+  const filteredLibrary = visibleLibrary.filter((item) => {
+    const query = nodeQuery.trim().toLowerCase()
+    if (!query) return true
+    return item.label.toLowerCase().includes(query) || item.description.toLowerCase().includes(query)
+  })
+  const graphDropRef = useRef<HTMLDivElement | null>(null)
+  const selectedCanvasNode = canvasNodes.find((node) => node.id === selectedNodeId) ?? null
+  const selectedLibraryItem = selectedCanvasNode
+    ? NODE_LIBRARY.find((item) => item.id === selectedCanvasNode.type) ?? null
+    : null
+  const selectedCoreType = selectedLibraryItem?.coreNodeId
 
   const handleClosePanel = useCallback(() => {
-    setSelectedNode(null)
+    setSelectedNodeId(null)
   }, [])
+
+  const removeNode = useCallback((nodeId: string) => {
+    setCanvasNodes((prev) => prev.filter((node) => node.id !== nodeId))
+    setEdges((prev) => prev.filter((edge) => edge.from !== nodeId && edge.to !== nodeId))
+    setSelectedNodeId((prev) => (prev === nodeId ? null : prev))
+    setLinkDrag((prev) => (prev?.fromNodeId === nodeId ? null : prev))
+    setDropHint("Nodo eliminado")
+  }, [])
+
+  const toggleNodeEnabled = useCallback((nodeId: string) => {
+    setCanvasNodes((prev) => prev.map((node) =>
+      node.id === nodeId ? { ...node, enabled: !node.enabled } : node
+    ))
+    setDropHint("Estado del nodo actualizado")
+  }, [])
+
+  const autoLayoutNodes = useCallback(() => {
+    setCanvasNodes((prev) => prev.map((node, index) => ({
+      ...node,
+      xPct: 20 + (index % 3) * 30,
+      yPct: 22 + Math.floor(index / 3) * 20,
+    })))
+    setDropHint("Nodos reorganizados")
+  }, [])
+
+  const clearCanvas = useCallback(() => {
+    setCanvasNodes([])
+    setEdges([])
+    setSelectedNodeId(null)
+    setLinkDrag(null)
+    setDropHint("Lienzo limpio")
+  }, [])
+
+  const handleDragStart = useCallback((item: NodeLibraryItem) => {
+    setDropHint(`Suelta para añadir: ${item.label}`)
+  }, [])
+
+  const handleCanvasNodeDragStart = useCallback((event: React.DragEvent<HTMLElement>, nodeId: string) => {
+    event.dataTransfer.setData("application/x-krnl-node", JSON.stringify({ kind: "move", nodeId }))
+    event.dataTransfer.effectAllowed = "move"
+    setDropHint("Mueve el nodo a una nueva posición")
+  }, [])
+
+  const handleDropNode = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setDropActive(false)
+
+    const rawPayload = event.dataTransfer.getData("application/x-krnl-node")
+    if (!rawPayload) return
+
+    let payload: { kind: "add"; nodeType: string } | { kind: "move"; nodeId: string }
+    try {
+      payload = JSON.parse(rawPayload)
+    } catch {
+      return
+    }
+
+    if (!payload) return
+
+    const host = graphDropRef.current
+    if (!host) return
+
+    const rect = host.getBoundingClientRect()
+    const x = ((event.clientX - rect.left) / rect.width) * 100
+    const y = ((event.clientY - rect.top) / rect.height) * 100
+
+    if (payload.kind === "move") {
+      setCanvasNodes((prev) => prev.map((node) =>
+        node.id === payload.nodeId
+          ? { ...node, xPct: Math.min(88, Math.max(8, x)), yPct: Math.min(90, Math.max(10, y)) }
+          : node
+      ))
+      return
+    }
+
+    const item = NODE_LIBRARY.find((node) => node.id === payload.nodeType)
+    if (!item) return
+    if (item.onlyAdvanced && !advancedMode) {
+      setDropHint("Ese nodo requiere modo avanzado")
+      return
+    }
+
+    const newNode: CanvasNode = {
+      id: `${item.id}-${Date.now()}`,
+      type: item.id,
+      label: item.label,
+      description: item.description,
+      xPct: Math.min(88, Math.max(8, x)),
+      yPct: Math.min(90, Math.max(10, y)),
+      color: item.color,
+      bgColor: item.bgColor,
+      borderColor: item.borderColor,
+      icon: item.icon,
+      enabled: true,
+    }
+
+    setCanvasNodes((prev) => [...prev, newNode])
+    setSelectedNodeId(newNode.id)
+    setDropHint(`Nodo añadido: ${item.label}`)
+  }, [advancedMode])
+
+  const clientPointToPct = useCallback((clientX: number, clientY: number) => {
+    const host = graphDropRef.current
+    if (!host) return null
+    const rect = host.getBoundingClientRect()
+    const xPct = ((clientX - rect.left) / rect.width) * 100
+    const yPct = ((clientY - rect.top) / rect.height) * 100
+    return {
+      xPct: Math.min(98, Math.max(2, xPct)),
+      yPct: Math.min(98, Math.max(2, yPct)),
+    }
+  }, [])
+
+  const startLinkDrag = useCallback((event: React.MouseEvent<HTMLButtonElement>, nodeId: string) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const point = clientPointToPct(event.clientX, event.clientY)
+    if (!point) return
+    const sourceNode = canvasNodes.find((node) => node.id === nodeId)
+    if (!sourceNode || !sourceNode.enabled) return
+    setLinkDrag({ fromNodeId: nodeId, ...point })
+    setDropHint("Mantén click y arrastra hacia el conector de entrada")
+  }, [canvasNodes, clientPointToPct])
+
+  const updateLinkDrag = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (!linkDrag) return
+    const point = clientPointToPct(event.clientX, event.clientY)
+    if (!point) return
+    setLinkDrag((prev) => (prev ? { ...prev, ...point } : prev))
+  }, [clientPointToPct, linkDrag])
+
+  const finishLinkOnNode = useCallback((event: React.MouseEvent<HTMLButtonElement>, targetNodeId: string) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!linkDrag || linkDrag.fromNodeId === targetNodeId) {
+      setLinkDrag(null)
+      return
+    }
+
+    const sourceNode = canvasNodes.find((node) => node.id === linkDrag.fromNodeId)
+    const targetNode = canvasNodes.find((node) => node.id === targetNodeId)
+    if (!sourceNode || !targetNode || !sourceNode.enabled || !targetNode.enabled) {
+      setLinkDrag(null)
+      setDropHint("No se puede conectar un nodo apagado")
+      return
+    }
+
+    const exists = edges.some((edge) => edge.from === linkDrag.fromNodeId && edge.to === targetNodeId)
+    if (!exists) {
+      setEdges((prev) => [
+        ...prev,
+        { id: `${linkDrag.fromNodeId}-${targetNodeId}-${Date.now()}`, from: linkDrag.fromNodeId, to: targetNodeId },
+      ])
+      setDropHint("Conexión creada")
+    }
+    setLinkDrag(null)
+  }, [canvasNodes, edges, linkDrag])
+
+  const cancelLinkDrag = useCallback(() => {
+    if (linkDrag) {
+      setLinkDrag(null)
+      setDropHint("Conexión cancelada")
+    }
+  }, [linkDrag])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const activeEl = document.activeElement as HTMLElement | null
+      const isTyping = !!activeEl && ["INPUT", "TEXTAREA", "SELECT"].includes(activeEl.tagName)
+
+      if (event.key === "Escape") {
+        setLinkDrag(null)
+      }
+
+      if (!isTyping && selectedNodeId && (event.key === "Delete" || event.key === "Backspace")) {
+        event.preventDefault()
+        removeNode(selectedNodeId)
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [removeNode, selectedNodeId])
 
   const handleChatSend = useCallback(() => {
     const text = chatInput.trim()
@@ -819,8 +1415,6 @@ export function CrearAgenteView() {
       setChatThinking(false)
     }, 1200)
   }, [chatInput, chatThinking])
-
-  const selectedNodeData = NODES.find((n) => n.id === selectedNode)
 
   return (
     <div className="flex flex-col h-full" style={{ background: "#F7F8FA" }}>
@@ -845,33 +1439,15 @@ export function CrearAgenteView() {
           <span className="text-sm font-semibold" style={{ color: "#1C2434" }}>
             Crear nuevo agente
           </span>
+          <span
+            className="text-[11px] px-2 py-1 rounded-full font-semibold"
+            style={{ background: "#EEF2FF", color: "#4F46E5" }}
+          >
+            maqueta flow builder
+          </span>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Node legend pills */}
-          {NODES.map((n) => {
-            const isActive = selectedNode === n.id
-            return (
-              <button
-                key={n.id}
-                onClick={() => handleSelectNode(n.id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all"
-                style={isActive
-                  ? { borderColor: "#D4009A", background: "#FFF0FA", color: "#D4009A" }
-                  : { borderColor: "#E9ECEE", background: "#FFFFFF", color: "#637381" }
-                }
-              >
-                <span
-                  className="h-1.5 w-1.5 rounded-full"
-                  style={{ background: n.color }}
-                />
-                {n.label}
-              </button>
-            )
-          })}
-
-          <div className="w-px h-4 mx-1" style={{ background: "#E9ECEE" }} />
-
           <button
             onClick={() => setChatOpen((o) => !o)}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border transition-all"
@@ -899,21 +1475,173 @@ export function CrearAgenteView() {
       {/* ── Body: graph + optional config panel ──────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
 
+        {/* Node library */}
+        <aside
+          className="w-[300px] shrink-0 border-r p-4 overflow-y-auto"
+          style={{ background: "#FFFFFF", borderColor: "rgba(145,158,171,0.16)" }}
+        >
+          <div className="mb-3">
+            <p className="text-sm font-bold" style={{ color: "#1C2434" }}>Biblioteca de nodos</p>
+            <p className="text-xs mt-0.5" style={{ color: "#637381" }}>
+              Arrastra al canvas para crear bloques del flujo.
+            </p>
+          </div>
+
+          <div
+            className="mb-3 rounded-xl border px-3 py-2 flex items-center gap-2"
+            style={{ borderColor: "#E9ECEE", background: "#F8FAFC" }}
+          >
+            <Search className="h-4 w-4" style={{ color: "#94A3B8" }} />
+            <input
+              value={nodeQuery}
+              onChange={(e) => setNodeQuery(e.target.value)}
+              placeholder="Buscar nodos..."
+              className="w-full bg-transparent text-xs outline-none"
+              style={{ color: "#334155" }}
+            />
+          </div>
+
+          <div className="space-y-2">
+            {filteredLibrary.map((item) => {
+              const Icon = item.icon
+              return (
+                <div
+                  key={item.id}
+                  draggable
+                  onDragStart={(event) => {
+                    event.dataTransfer.setData("application/x-krnl-node", JSON.stringify({ kind: "add", nodeType: item.id }))
+                    event.dataTransfer.effectAllowed = "copy"
+                    handleDragStart(item)
+                  }}
+                  className="rounded-xl border px-3.5 py-3 cursor-grab active:cursor-grabbing transition-all"
+                  style={{ borderColor: item.borderColor, background: item.bgColor }}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <div
+                      className="h-8 w-8 rounded-lg flex items-center justify-center border"
+                      style={{ borderColor: item.borderColor, background: "#FFFFFF" }}
+                    >
+                      <Icon className="h-4.5 w-4.5" style={{ color: item.color }} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-semibold" style={{ color: "#1C2434" }}>{item.label}</p>
+                      <p className="text-xs leading-snug" style={{ color: "#637381" }}>{item.description}</p>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+
+            {filteredLibrary.length === 0 && (
+              <div className="rounded-xl border px-3 py-4 text-center" style={{ borderColor: "#E9ECEE", background: "#FFFFFF" }}>
+                <p className="text-xs font-semibold" style={{ color: "#64748B" }}>No hay nodos con ese filtro</p>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 rounded-xl border px-3 py-2" style={{ borderColor: "#E9ECEE", background: "#F8FAFC" }}>
+            <p className="text-xs font-semibold" style={{ color: "#334155" }}>Tip</p>
+            <p className="text-xs mt-1" style={{ color: "#64748B" }}>
+              Mantén click en el punto derecho, arrastra y suelta en el punto izquierdo del nodo destino.
+            </p>
+          </div>
+        </aside>
+
         {/* Graph canvas */}
         <div
           className="flex-1 flex flex-col overflow-hidden transition-all"
-          style={{ background: "#F7F8FA" }}
+          style={{ background: "#FFFFFF" }}
         >
-          {/* Graph area */}
-          <div className="flex-1 flex items-center justify-center p-6">
+          <div className="px-6 pt-4 pb-2">
             <div
-              className="relative w-full h-full"
-              style={{ maxWidth: "680px", maxHeight: "620px" }}
+              className="rounded-2xl border px-5 py-3.5 flex items-center gap-4 flex-wrap"
+              style={{ borderColor: "#E9ECEE", background: "#FFFFFF" }}
             >
-              {/* Background grid dots */}
+              <button
+                onClick={() => setAdvancedMode((v) => !v)}
+                className="px-3.5 py-2.5 rounded-xl text-sm font-semibold border transition-colors"
+                style={advancedMode
+                  ? { borderColor: "#4F46E5", background: "#EEF2FF", color: "#4F46E5" }
+                  : { borderColor: "#E9ECEE", background: "#FFFFFF", color: "#637381" }
+                }
+              >
+                {advancedMode ? "Modo avanzado" : "Modo básico"}
+              </button>
+
+              <Field label="Arquitectura" >
+                <select
+                  value={flowPattern}
+                  onChange={(e) => setFlowPattern(e.target.value)}
+                  className="rounded-xl border px-3.5 py-2.5 text-sm outline-none min-w-[230px]"
+                  style={{ borderColor: "#E9ECEE", background: "#F7F8FA", color: "#1C2434" }}
+                >
+                  {FLOW_PATTERNS.map((pattern) => <option key={pattern}>{pattern}</option>)}
+                </select>
+              </Field>
+
+              <Field label={`Máx. pasos: ${maxSteps}`}>
+                <input
+                  type="range"
+                  min={2}
+                  max={12}
+                  value={maxSteps}
+                  onChange={(e) => setMaxSteps(Number(e.target.value))}
+                  className="w-52 accent-[#D4009A]"
+                />
+              </Field>
+
+              <div className="ml-auto flex items-center gap-2">
+                <span className="text-xs font-semibold" style={{ color: "#64748B" }}>
+                  {canvasNodes.length} nodos • {edges.length} conexiones
+                </span>
+
+                <button
+                  onClick={autoLayoutNodes}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold"
+                  style={{ borderColor: "#E9ECEE", background: "#FFFFFF", color: "#475569" }}
+                >
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                  Reordenar
+                </button>
+
+                <button
+                  onClick={clearCanvas}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold"
+                  style={{ borderColor: "#FECACA", background: "#FEF2F2", color: "#B91C1C" }}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Limpiar
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Canvas area */}
+          <div className="flex-1 p-4 pt-2 min-h-0">
+            <div
+              ref={graphDropRef}
+              className="relative w-full h-full"
+              style={{
+                minHeight: "100%",
+                background: "#FFFFFF",
+                border: dropActive ? "1px solid #C7D2FE" : "1px solid #EEF2F6",
+                borderRadius: "16px",
+                boxShadow: dropActive ? "0 0 0 3px rgba(79,70,229,0.08)" : "inset 0 0 0 1px rgba(255,255,255,0.4)",
+              }}
+              onDragOver={(event) => {
+                event.preventDefault()
+                event.dataTransfer.dropEffect = "copy"
+                setDropActive(true)
+              }}
+              onDragLeave={() => setDropActive(false)}
+              onDrop={handleDropNode}
+              onMouseMove={updateLinkDrag}
+              onMouseUp={cancelLinkDrag}
+            >
+              {/* White dotted canvas */}
               <svg
                 className="absolute inset-0 w-full h-full pointer-events-none"
-                style={{ opacity: 0.4 }}
+                style={{ opacity: 0.35 }}
               >
                 <defs>
                   <pattern id="dots" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
@@ -923,99 +1651,174 @@ export function CrearAgenteView() {
                 <rect width="100%" height="100%" fill="url(#dots)" />
               </svg>
 
-              {/* The graph */}
-              <AgentGraph
-                selectedNode={selectedNode}
-                onSelectNode={handleSelectNode}
-                configuredNodes={configuredNodes}
-                onHoverNode={setHoveredNode}
-              />
+              {/* Connection wires */}
+              <svg
+                className="absolute inset-0 w-full h-full pointer-events-none"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+              >
+                {edges.map((edge) => {
+                  const from = canvasNodes.find((node) => node.id === edge.from)
+                  const to = canvasNodes.find((node) => node.id === edge.to)
+                  if (!from || !to) return null
 
-              {/* ── Tooltip overlay (HTML, not SVG — no clipping) ── */}
-              {hoveredNode && (() => {
-                const tip = NODE_TOOLTIPS[hoveredNode]
-                // viewBox coords → % of container
-                // W=560, H=520 (the SVG viewBox)
-                const W = 560, H = 520
-                const pos = {
-                  "guardrail":       { x: 130, y: 30,  w: 300, h: 80  },
-                  "main-agent":      { x: 130, y: 170, w: 300, h: 80  },
-                  "knowledge-agent": { x: 10,  y: 340, w: 255, h: 88  },
-                  "tools-agent":     { x: 295, y: 340, w: 255, h: 88  },
-                }[hoveredNode]
-                const centerYPct = ((pos.y + pos.h / 2) / H) * 100
-                const rightEdgePct = ((pos.x + pos.w) / W) * 100
-                const leftEdgePct = (pos.x / W) * 100
-                // place right if right-edge is before 60%, else left
-                const placeRight = rightEdgePct < 60
+                  const isDisabledEdge = !from.enabled || !to.enabled
+
+                  const x1 = from.xPct + 12.4
+                  const y1 = from.yPct
+                  const x2 = to.xPct - 12.4
+                  const y2 = to.yPct
+                  const c1x = x1 + 9
+                  const c2x = x2 - 9
+
+                  return (
+                    <path
+                      key={edge.id}
+                      d={`M ${x1} ${y1} C ${c1x} ${y1}, ${c2x} ${y2}, ${x2} ${y2}`}
+                      fill="none"
+                      stroke={isDisabledEdge ? "#CBD5E1" : "#374151"}
+                      strokeWidth="0.45"
+                      strokeLinecap="round"
+                      opacity={isDisabledEdge ? "0.5" : "0.9"}
+                      strokeDasharray={isDisabledEdge ? "0.9 0.9" : "none"}
+                    />
+                  )
+                })}
+
+                {linkDrag && (() => {
+                  const from = canvasNodes.find((node) => node.id === linkDrag.fromNodeId)
+                  if (!from) return null
+
+                  const x1 = from.xPct + 12.4
+                  const y1 = from.yPct
+                  const x2 = linkDrag.xPct
+                  const y2 = linkDrag.yPct
+                  const c1x = x1 + 8
+                  const c2x = x2 - 8
+
+                  return (
+                    <path
+                      d={`M ${x1} ${y1} C ${c1x} ${y1}, ${c2x} ${y2}, ${x2} ${y2}`}
+                      fill="none"
+                      stroke="#D4009A"
+                      strokeWidth="0.42"
+                      strokeDasharray="1.4 1"
+                      strokeLinecap="round"
+                    />
+                  )
+                })()}
+              </svg>
+
+              {canvasNodes.map((node) => {
+                const Icon = node.icon
+                const isSelected = selectedNodeId === node.id
+                const isLinkStart = linkDrag?.fromNodeId === node.id
+                const isEnabled = node.enabled
                 return (
                   <div
-                    key={`tip-${hoveredNode}`}
+                    key={node.id}
+                    draggable
+                    onDragStart={(event) => handleCanvasNodeDragStart(event, node.id)}
+                    onClick={() => setSelectedNodeId(node.id)}
+                    className="absolute w-[248px] rounded-2xl border px-4 py-3 text-left cursor-grab active:cursor-grabbing transition-transform duration-150 hover:scale-[1.01]"
                     style={{
-                      position: "absolute",
-                      top: `${centerYPct}%`,
-                      transform: "translateY(-50%)",
-                      ...(placeRight
-                        ? { left: `calc(${rightEdgePct}% + 12px)` }
-                        : { right: `calc(${100 - leftEdgePct}% + 12px)` }),
-                      width: "220px",
-                      zIndex: 50,
-                      pointerEvents: "none",
+                      left: `${node.xPct}%`,
+                      top: `${node.yPct}%`,
+                      transform: "translate(-50%, -50%)",
+                      borderColor: isSelected ? "#D4009A" : node.borderColor,
+                      background: isSelected ? "#FFF0FA" : "#FFFFFF",
+                      boxShadow: "0 6px 20px rgba(15,40,112,0.08)",
+                      opacity: isEnabled ? 1 : 0.5,
                     }}
                   >
-                    <div
-                      style={{
-                        background: "#1C2434",
-                        color: "#FFFFFF",
-                        borderRadius: "12px",
-                        padding: "12px 14px",
-                        fontSize: "12px",
-                        lineHeight: "1.55",
-                        boxShadow: "0 8px 24px rgba(0,0,0,0.22)",
-                      }}
-                    >
-                      <p style={{ margin: 0 }}>{tip.message}</p>
-                      {tip.linkLabel && tip.linkHref && (
-                        <a
-                          href={tip.linkHref}
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "4px",
-                            marginTop: "8px",
-                            fontSize: "11px",
-                            fontWeight: 600,
-                            color: "#D4009A",
-                            background: "rgba(212,0,154,0.15)",
-                            borderRadius: "6px",
-                            padding: "3px 10px",
-                            textDecoration: "none",
-                            pointerEvents: "auto",
-                          }}
-                        >
-                          → {tip.linkLabel}
-                        </a>
-                      )}
+                    <div className="absolute right-0 -top-2.5 translate-y-[-100%] flex items-center gap-1">
+                      <button
+                        className="h-5 w-5 rounded-md border flex items-center justify-center"
+                        style={isEnabled
+                          ? { borderColor: "#BBF7D0", background: "#F0FDF4", color: "#15803D" }
+                          : { borderColor: "#E2E8F0", background: "#F8FAFC", color: "#64748B" }
+                        }
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          toggleNodeEnabled(node.id)
+                        }}
+                        title={isEnabled ? "Apagar nodo" : "Encender nodo"}
+                      >
+                        <Power className="h-3 w-3" />
+                      </button>
+                      <button
+                        className="h-5 w-5 rounded-md border flex items-center justify-center"
+                        style={{ borderColor: "#FECACA", background: "#FEF2F2", color: "#B91C1C" }}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          removeNode(node.id)
+                        }}
+                        title="Eliminar nodo"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
                     </div>
-                    {/* Arrow tip */}
-                    <div
+
+                    <button
+                      className="absolute -left-3 top-1/2 -translate-y-1/2 h-5 w-5 rounded-full border"
                       style={{
-                        position: "absolute",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        ...(placeRight ? { left: "-6px" } : { right: "-6px" }),
-                        width: 0,
-                        height: 0,
-                        borderTop: "6px solid transparent",
-                        borderBottom: "6px solid transparent",
-                        ...(placeRight
-                          ? { borderRight: "6px solid #1C2434" }
-                          : { borderLeft: "6px solid #1C2434" }),
+                        borderColor: "#94A3B8",
+                        background: linkDrag ? "#EEF2FF" : "#FFFFFF",
+                        opacity: isEnabled ? 1 : 0.45,
                       }}
+                      onMouseUp={(event) => finishLinkOnNode(event, node.id)}
                     />
+
+                    <button
+                      className="absolute -right-3 top-1/2 -translate-y-1/2 h-5 w-5 rounded-full border"
+                      style={isLinkStart
+                        ? { borderColor: "#D4009A", background: "#FCE7F3" }
+                        : { borderColor: "#94A3B8", background: "#FFFFFF" }
+                      }
+                      onMouseDown={(event) => startLinkDrag(event, node.id)}
+                    />
+
+                    <div className="flex items-start gap-2">
+                      <div
+                        className="h-8 w-8 rounded-lg border flex items-center justify-center"
+                        style={{ borderColor: node.borderColor, background: node.bgColor }}
+                      >
+                        <Icon className="h-4 w-4" style={{ color: node.color }} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[12px] font-semibold leading-tight" style={{ color: "#1C2434" }}>{node.label}</p>
+                        <p className="text-[11px] mt-0.5 leading-snug" style={{ color: "#637381" }}>{node.description}</p>
+                        {!isEnabled && (
+                          <p className="text-[10px] mt-1 font-semibold" style={{ color: "#94A3B8" }}>Nodo apagado</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )
-              })()}
+              })}
+
+              <div
+                className="absolute left-3 top-3 px-2.5 py-1.5 rounded-full border text-[11px] font-medium"
+                style={dropActive
+                  ? { background: "#EEF2FF", borderColor: "#C7D2FE", color: "#4F46E5" }
+                  : { background: "#FFFFFF", borderColor: "#E9ECEE", color: "#64748B" }
+                }
+              >
+                {dropActive ? "Suelta para agregar o mover nodo" : dropHint}
+              </div>
+
+              {canvasNodes.length === 0 && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="text-center">
+                    <p className="text-sm font-semibold" style={{ color: "#475569" }}>Lienzo en blanco</p>
+                    <p className="text-xs mt-1" style={{ color: "#94A3B8" }}>
+                      Arrastra nodos de la biblioteca para comenzar el flujo.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1150,20 +1953,23 @@ export function CrearAgenteView() {
         </div>
 
         {/* Config panel — slides in when a node is selected */}
-        {selectedNode && (
+        {selectedNodeId && (
           <div
-            className="w-[380px] shrink-0 border-l flex flex-col overflow-hidden"
+            className="w-[420px] shrink-0 border-l flex flex-col overflow-hidden"
             style={{
               background: "#FFFFFF",
               borderColor: "rgba(145,158,171,0.16)",
               animation: "slideInRight 0.18s ease-out",
             }}
           >
-            {selectedNode === "guardrail"       && <GuardrailPanel     onClose={handleClosePanel} />}
-            {selectedNode === "main-agent"      && <MainAgentPanel     onClose={handleClosePanel} />}
-            {selectedNode === "knowledge-agent" && <KnowledgeAgentPanel onClose={handleClosePanel} />}
-            {selectedNode === "tools-agent"     && <ToolsAgentPanel    onClose={handleClosePanel} />}
-            {selectedNode === "publish"         && <PublishPanel       onClose={handleClosePanel} />}
+            {selectedCoreType === "guardrail" && <GuardrailPanel onClose={handleClosePanel} />}
+            {selectedCoreType === "main-agent" && <MainAgentPanel onClose={handleClosePanel} />}
+            {selectedCoreType === "knowledge-agent" && <KnowledgeAgentPanel onClose={handleClosePanel} />}
+            {selectedCoreType === "tools-agent" && <ToolsAgentPanel onClose={handleClosePanel} />}
+            {selectedCoreType === "memory-agent" && <MemoryAgentPanel onClose={handleClosePanel} />}
+            {selectedCoreType === "router-agent" && <RouterAgentPanel onClose={handleClosePanel} />}
+            {selectedCoreType === "evaluator-agent" && <EvaluatorAgentPanel onClose={handleClosePanel} />}
+            {!selectedCoreType && selectedCanvasNode && <CustomCanvasNodePanel node={selectedCanvasNode} onClose={handleClosePanel} />}
           </div>
         )}
       </div>

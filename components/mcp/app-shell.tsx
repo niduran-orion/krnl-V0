@@ -33,6 +33,8 @@ import {
   User,
   Users,
   FlaskConical,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -128,6 +130,7 @@ interface AppShellProps {
 
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname()
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [integrationExpanded, setIntegrationExpanded] = useState(true)
   const [canalesExpanded, setCanalesExpanded] = useState(true)
@@ -146,12 +149,21 @@ export function AppShell({ children }: AppShellProps) {
 
       {/* ── Sidebar ─────────────────────────────────────────────────── */}
       <aside
-        className="w-[240px] shrink-0 flex flex-col border-r"
+        className={cn(
+          "shrink-0 flex flex-col border-r transition-all duration-200",
+          sidebarCollapsed ? "w-[74px]" : "w-[240px]"
+        )}
         style={{ background: "#FFFFFF", borderColor: "rgba(145, 158, 171, 0.2)" }}
       >
         {/* Logo */}
-        <div className="h-[60px] flex items-center px-5 shrink-0 border-b" style={{ borderColor: "rgba(145, 158, 171, 0.2)" }}>
-          <Link href="/" className="flex items-center gap-2.5">
+        <div
+          className={cn(
+            "h-[60px] flex items-center shrink-0 border-b",
+            sidebarCollapsed ? "px-3 justify-center" : "px-5 justify-between"
+          )}
+          style={{ borderColor: "rgba(145, 158, 171, 0.2)" }}
+        >
+          <Link href="/" className={cn("flex items-center", sidebarCollapsed ? "gap-0" : "gap-2.5")}>
             {/* Gradient isotipo */}
             <div
               className="h-9 w-9 rounded-xl flex items-center justify-center shadow"
@@ -161,40 +173,55 @@ export function AppShell({ children }: AppShellProps) {
                 <path d="M12 2L3 7l9 5 9-5-9-5zM3 12l9 5 9-5M3 17l9 5 9-5" stroke="white" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
-            <div className="flex flex-col leading-none">
-              <span className="font-bold text-[#1B2A3B] text-lg tracking-tight">KRNL</span>
-              <span className="text-[10px] font-medium" style={{ color: "#94A3B8" }}>by ORION</span>
-            </div>
+            {!sidebarCollapsed && (
+              <div className="flex flex-col leading-none">
+                <span className="font-bold text-[#1B2A3B] text-lg tracking-tight">KRNL</span>
+                <span className="text-[10px] font-medium" style={{ color: "#94A3B8" }}>by ORION</span>
+              </div>
+            )}
           </Link>
+
+          <button
+            onClick={() => setSidebarCollapsed((v) => !v)}
+            className="h-8 w-8 rounded-lg border flex items-center justify-center transition-colors"
+            style={{ borderColor: "rgba(145, 158, 171, 0.28)", color: "#637381" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#F4F6F8")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "")}
+            title={sidebarCollapsed ? "Expandir menú" : "Comprimir menú"}
+          >
+            {sidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </button>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-3 px-3">
+        <nav className={cn("flex-1 overflow-y-auto py-3", sidebarCollapsed ? "px-2" : "px-3")}>
           {navSections.map((section) => {
             const isSectionCollapsed = collapsed[section.label]
             return (
               <div key={section.label} className="mb-1">
                 {/* Section header */}
-                <button
-                  onClick={() => toggleSection(section.label)}
-                  className="flex items-center justify-between w-full px-2 py-2 group"
-                >
-                  <span
-                    className="text-[10px] font-semibold tracking-widest"
-                    style={{ color: "#637381" }}
+                {!sidebarCollapsed && (
+                  <button
+                    onClick={() => toggleSection(section.label)}
+                    className="flex items-center justify-between w-full px-2 py-2 group"
                   >
-                    {section.label}
-                  </span>
-                  <ChevronDown
-                    className={cn(
-                      "h-3 w-3 transition-transform",
-                      isSectionCollapsed && "-rotate-90"
-                    )}
-                    style={{ color: "#637381" }}
-                  />
-                </button>
+                    <span
+                      className="text-[10px] font-semibold tracking-widest"
+                      style={{ color: "#637381" }}
+                    >
+                      {section.label}
+                    </span>
+                    <ChevronDown
+                      className={cn(
+                        "h-3 w-3 transition-transform",
+                        isSectionCollapsed && "-rotate-90"
+                      )}
+                      style={{ color: "#637381" }}
+                    />
+                  </button>
+                )}
 
-                {!isSectionCollapsed && (
+                {(!isSectionCollapsed || sidebarCollapsed) && (
                   <div className="space-y-0.5">
                     {section.items.map((item) => {
                       const hasSubItems = (item as any).hasSubItems
@@ -224,8 +251,10 @@ export function AppShell({ children }: AppShellProps) {
                           <div className="flex items-center gap-1">
                             <Link
                               href={item.href}
+                              title={sidebarCollapsed ? item.label : undefined}
                               className={cn(
-                                "flex items-center gap-2.5 flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                                "flex items-center flex-1 rounded-lg py-2 text-sm font-medium transition-colors",
+                                sidebarCollapsed ? "justify-center px-2" : "gap-2.5 px-3"
                               )}
                               style={
                                 active
@@ -247,13 +276,15 @@ export function AppShell({ children }: AppShellProps) {
                                 className="h-4 w-4 shrink-0"
                                 style={{ color: active ? "#FFFFFF" : "#637381" }}
                               />
-                              <span style={{ color: active ? "#FFFFFF" : "#212B36" }}>
-                                {item.label}
-                              </span>
+                              {!sidebarCollapsed && (
+                                <span style={{ color: active ? "#FFFFFF" : "#212B36" }}>
+                                  {item.label}
+                                </span>
+                              )}
                             </Link>
 
                             {/* Expand/collapse sub-items toggle */}
-                            {hasSubItems && (
+                            {hasSubItems && !sidebarCollapsed && (
                               <button
                                 onClick={toggleExpanded}
                                 className="p-1.5 rounded-lg transition-colors"
@@ -269,7 +300,7 @@ export function AppShell({ children }: AppShellProps) {
                           </div>
 
                           {/* Sub-items */}
-                          {hasSubItems && isExpanded && (
+                          {hasSubItems && isExpanded && !sidebarCollapsed && (
                             <div
                               className="ml-3 mt-0.5 mb-1 pl-3 space-y-0.5 border-l-2"
                               style={{ borderColor: "rgba(145, 158, 171, 0.24)" }}
@@ -316,11 +347,14 @@ export function AppShell({ children }: AppShellProps) {
         {/* Bottom version badge */}
         <div className="px-4 py-3 border-t shrink-0" style={{ borderColor: "rgba(145, 158, 171, 0.2)" }}>
           <div
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium"
+            className={cn(
+              "inline-flex items-center px-3 py-1.5 rounded-full text-[11px] font-medium",
+              sidebarCollapsed ? "justify-center w-full" : "gap-1.5"
+            )}
             style={{ background: "#F1F5F9", color: "#64748B" }}
           >
             <Zap className="h-3 w-3" style={{ color: "#D4009A" }} />
-            v2.1 Beta
+            {!sidebarCollapsed && "v2.1 Beta"}
           </div>
         </div>
       </aside>
